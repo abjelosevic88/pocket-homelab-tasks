@@ -84,7 +84,7 @@ func (s *Server) taskLink(t *store.Task) string {
 	if s.cfg.BaseURL == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s/task/%d", s.cfg.BaseURL, t.ID)
+	return fmt.Sprintf("%s/today?task=%d", s.cfg.BaseURL, t.ID)
 }
 
 // whenText says when a task is due, for a notification.

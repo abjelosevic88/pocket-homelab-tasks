@@ -1351,7 +1351,7 @@ func (s *Server) mirrorEvent(ctx context.Context, t *store.Task, st store.Settin
 		ev.SetRaw("TRANSP", "TRANSPARENT")
 	}
 	if s.cfg.BaseURL != "" {
-		ev.SetRaw("URL", fmt.Sprintf("%s/task/%d", s.cfg.BaseURL, t.ID))
+		ev.SetRaw("URL", fmt.Sprintf("%s/today?task=%d", s.cfg.BaseURL, t.ID))
 	}
 	ev.SetRaw("X-POCKET-TASK", strconv.FormatInt(t.ID, 10))
 	ev.SetRaw("SEQUENCE", strconv.FormatInt(t.Seq%100000, 10))
