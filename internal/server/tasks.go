@@ -141,18 +141,6 @@ func (s *Server) saveTask(ctx context.Context, t *store.Task, source, kind strin
 	}
 	s.render(ctx, t)
 	isNew := t.ID == 0
-	var err error
-	if isNew {
-		err = s.store.InsertTask(ctx, t)
-	} else {
-		err = s.store.UpdateTask(ctx, t)
-	}
-	if err != nil {
-		return err
-	}
-	s.scheduleAlarms(ctx, t)
-	s.touch()
-	go s.syncSoon(t.UserID)
 	if kind == "" {
 		if isNew {
 			kind = "created"
@@ -160,14 +148,20 @@ func (s *Server) saveTask(ctx context.Context, t *store.Task, source, kind strin
 			kind = "updated"
 		}
 	}
-	s.store.AddActivity(ctx, t.UserID, t.ID, kind, source)
-	topic := "tasks." + kind
-	switch kind {
-	case "created", "updated", "completed", "deleted":
-	default:
-		topic = "tasks.updated"
+	hook := s.taskEvent(ctx, t, kind, source, nil)
+	var err error
+	if isNew {
+		err = s.store.InsertTask(ctx, t, hook)
+	} else {
+		err = s.store.UpdateTask(ctx, t, hook)
 	}
-	s.publish(t.UserID, topic, fmt.Sprintf("task:%d", t.ID), map[string]any{"id": t.ID, "title": t.Title, "list_id": t.ListID, "status": t.Status, "due": t.DueStr(), "start": t.StartStr(), "source": source})
+	if err != nil {
+		return err
+	}
+	s.scheduleAlarms(ctx, t)
+	s.touch()
+	go s.syncSoon(t.UserID)
+	s.store.AddActivity(ctx, t.UserID, t.ID, kind, source)
 	return nil
 }
 
@@ -947,14 +941,13 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err, "get task")
 		return
 	}
-	if err := s.store.SoftDeleteTask(ctx, uid, id); err != nil {
+	if err := s.store.SoftDeleteTask(ctx, uid, id, s.taskEvent(ctx, t, "deleted", "api", nil)); err != nil {
 		s.fail(w, err, "delete task")
 		return
 	}
 	s.touch()
 	go s.syncSoon(uid)
 	s.store.AddActivity(ctx, uid, id, "deleted", "api")
-	s.publish(uid, "tasks.deleted", fmt.Sprintf("task:%d", id), map[string]any{"id": id, "title": t.Title, "list_id": t.ListID})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1249,7 +1242,7 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		}
 		switch in.Action {
 		case "delete":
-			if s.store.SoftDeleteTask(ctx, uid, id) == nil {
+			if s.store.SoftDeleteTask(ctx, uid, id, s.taskEvent(ctx, t, "deleted", "api", nil)) == nil {
 				s.store.AddActivity(ctx, uid, id, "deleted", "batch")
 				n++
 			}

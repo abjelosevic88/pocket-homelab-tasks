@@ -56,14 +56,16 @@ func (s *Server) fireAlarms(ctx context.Context) {
 			_ = s.store.MarkAlarmFired(ctx, a.ID)
 			continue
 		}
-		_ = s.store.MarkAlarmFired(ctx, a.ID)
+		if err := s.store.MarkAlarmFired(ctx, a.ID, s.taskEvent(ctx, t, "reminder", "alarm", map[string]any{"trigger": a.Trigger})); err != nil {
+			s.log.Warn("record reminder", "err", err)
+			continue
+		}
 		st, _ := s.store.GetSettings(ctx, a.UserID)
 		body := a.Description
 		if body == "" {
 			body = s.whenText(ctx, t, a.UserID)
 		}
 		link := s.taskLink(t)
-		s.publish(a.UserID, "tasks.reminder", fmt.Sprintf("task:%d", t.ID), map[string]any{"id": t.ID, "title": t.Title, "list_id": t.ListID, "due": t.DueStr(), "start": t.StartStr(), "trigger": a.Trigger})
 		s.store.AddActivity(ctx, a.UserID, t.ID, "reminded", a.Trigger)
 		if !st.NotifyAlarms {
 			continue

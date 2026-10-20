@@ -650,7 +650,7 @@ func (s *Server) davCollection(ctx context.Context, w http.ResponseWriter, r *ht
 		ts, _ := s.store.ListTasksInList(ctx, uid, l.ID)
 		for _, t := range ts {
 			if t.ParentID == nil {
-				_ = s.store.SoftDeleteTask(ctx, uid, t.ID)
+				_ = s.store.SoftDeleteTask(ctx, uid, t.ID, s.taskEvent(ctx, t, "deleted", "caldav", nil))
 			}
 		}
 		inbox, _ := s.store.Inbox(ctx, uid)
@@ -1198,14 +1198,14 @@ func (s *Server) davResource(ctx context.Context, w http.ResponseWriter, r *http
 		kind := "updated"
 		if !exists {
 			kind = "created"
-			err = s.store.InsertTask(ctx, t)
+			err = s.store.InsertTask(ctx, t, s.taskEvent(ctx, t, kind, "caldav", nil))
 		} else {
 			if !wasDone && t.Status == ical.StatusDone {
 				kind = "completed"
 			} else if wasDone && t.Status != ical.StatusDone {
 				kind = "reopened"
 			}
-			err = s.store.UpdateTask(ctx, t)
+			err = s.store.UpdateTask(ctx, t, s.taskEvent(ctx, t, kind, "caldav", nil))
 		}
 		if err != nil {
 			s.fail(w, err, "store task")
@@ -1214,7 +1214,6 @@ func (s *Server) davResource(ctx context.Context, w http.ResponseWriter, r *http
 		s.scheduleAlarms(ctx, t)
 		s.touch()
 		s.store.AddActivity(ctx, uid, t.ID, kind, "caldav")
-		s.publish(uid, "tasks."+map[string]string{"created": "created", "updated": "updated", "completed": "completed", "reopened": "updated"}[kind], fmt.Sprintf("task:%d", t.ID), map[string]any{"id": t.ID, "title": t.Title, "list_id": t.ListID, "status": t.Status, "due": t.DueStr(), "start": t.StartStr(), "source": "caldav"})
 		go s.syncSoon(uid)
 		w.Header().Set("ETag", t.ETag)
 		if exists && kind != "created" {
@@ -1231,13 +1230,12 @@ func (s *Server) davResource(ctx context.Context, w http.ResponseWriter, r *http
 			http.Error(w, "changed meanwhile", http.StatusPreconditionFailed)
 			return
 		}
-		if err := s.store.SoftDeleteTask(ctx, uid, t.ID); err != nil {
+		if err := s.store.SoftDeleteTask(ctx, uid, t.ID, s.taskEvent(ctx, t, "deleted", "caldav", nil)); err != nil {
 			s.fail(w, err, "delete task")
 			return
 		}
 		s.touch()
 		s.store.AddActivity(ctx, uid, t.ID, "deleted", "caldav")
-		s.publish(uid, "tasks.deleted", fmt.Sprintf("task:%d", t.ID), map[string]any{"id": t.ID, "title": t.Title, "list_id": t.ListID})
 		go s.syncSoon(uid)
 		w.WriteHeader(http.StatusNoContent)
 	default:

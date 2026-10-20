@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
 	"strings"
 	"time"
 
@@ -421,7 +422,7 @@ func (s *Store) Search(ctx context.Context, uid int64, q string, limit int) ([]*
 }
 
 // InsertTask stores a new task (ics, etag, href, uid set by the caller).
-func (s *Store) InsertTask(ctx context.Context, t *Task) error {
+func (s *Store) InsertTask(ctx context.Context, t *Task, after ...core.CommitHook) error {
 	if t.SortOrder == 0 {
 		var max sql.NullFloat64
 		_ = s.DB.QueryRowContext(ctx, `SELECT MAX(sort_order) FROM tasks WHERE list_id = ? AND deleted_at = ''`, t.ListID).Scan(&max)
@@ -452,12 +453,12 @@ func (s *Store) InsertTask(ctx context.Context, t *Task) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE lists SET seq = ?, updated_at = ? WHERE id = ?`, t.Seq, now, t.ListID); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return core.Commit(tx, after...)
 }
 
 // UpdateTask saves every column of a task and bumps its change number. When
 // the task moved lists, a tombstone marks where it used to be.
-func (s *Store) UpdateTask(ctx context.Context, t *Task) error {
+func (s *Store) UpdateTask(ctx context.Context, t *Task, after ...core.CommitHook) error {
 	var oldList int64
 	var oldHref string
 	if err := s.DB.QueryRowContext(ctx, `SELECT list_id, href FROM tasks WHERE id = ? AND user_id = ?`, t.ID, t.UserID).Scan(&oldList, &oldHref); err != nil {
@@ -504,7 +505,7 @@ func (s *Store) UpdateTask(ctx context.Context, t *Task) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE lists SET seq = ?, updated_at = ? WHERE id = ?`, t.Seq, now, t.ListID); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return core.Commit(tx, after...)
 }
 
 func (s *Store) writeExtras(ctx context.Context, tx *sql.Tx, t *Task) error {
@@ -582,9 +583,17 @@ func (s *Store) DueAlarms(ctx context.Context, before time.Time) ([]DueAlarm, er
 }
 
 // MarkAlarmFired records that an alarm was sent.
-func (s *Store) MarkAlarmFired(ctx context.Context, id int64) error {
-	_, err := s.DB.ExecContext(ctx, `UPDATE alarms SET fired_at = ? WHERE id = ?`, Now(), id)
-	return err
+func (s *Store) MarkAlarmFired(ctx context.Context, id int64, after ...core.CommitHook) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `UPDATE alarms SET fired_at = ? WHERE id = ?`, Now(), id)
+	if err != nil {
+		return err
+	}
+	return core.Commit(tx, after...)
 }
 
 // TasksWithAlarms lists live open tasks that have alarms (to recompute fire times).
@@ -593,7 +602,7 @@ func (s *Store) TasksWithAlarms(ctx context.Context, uid int64) ([]*Task, error)
 }
 
 // SoftDeleteTask moves a task and its subtasks to the trash.
-func (s *Store) SoftDeleteTask(ctx context.Context, uid, id int64) error {
+func (s *Store) SoftDeleteTask(ctx context.Context, uid, id int64, after ...core.CommitHook) error {
 	t, err := s.GetTask(ctx, uid, id)
 	if err != nil {
 		return err
@@ -631,7 +640,7 @@ func (s *Store) SoftDeleteTask(ctx context.Context, uid, id int64) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE lists SET seq = ?, updated_at = ? WHERE id = ?`, seq, now, t.ListID); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return core.Commit(tx, after...)
 }
 
 // RestoreTask brings a task (and its subtasks) back from the trash.
