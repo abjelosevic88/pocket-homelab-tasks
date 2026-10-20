@@ -494,7 +494,7 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 // ---------- health / metrics ----------
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "version": Version, "uptime": time.Since(s.started).Round(time.Second).String()})
+	writeJSON(w, http.StatusOK, map[string]any{"core_outbox": s.coreOutboxHealth(r.Context()), "status": "ok", "version": Version, "uptime": time.Since(s.started).Round(time.Second).String()})
 }
 
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {

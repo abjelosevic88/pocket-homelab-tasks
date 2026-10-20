@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -341,6 +340,18 @@ func (c *Client) doKey(ctx context.Context, method, path, auth string, body, out
 // and stores the minted app token (in memory and TokenFile); afterwards the
 // app token alone is enough and the key may be empty.
 func (c *Client) Register(ctx context.Context, registrationKey string, m Manifest) (*Registration, error) {
+	if len(m.Publishes) > 0 {
+		offered := false
+		for _, o := range m.Offers {
+			if o.Scope == "events:read" {
+				offered = true
+			}
+		}
+		if !offered {
+			m.Offers = append(m.Offers, Offer{Scope: "events:read", Name: "Read activity events", Description: "Read this person's attributed events through approved app links"})
+		}
+	}
+
 	auth := c.Token()
 	if auth == "" {
 		auth = registrationKey
@@ -360,8 +371,9 @@ func (c *Client) Register(ctx context.Context, registrationKey string, m Manifes
 		c.token = reg.Token
 		c.mu.Unlock()
 		if c.opts.TokenFile != "" {
-			_ = os.MkdirAll(filepath.Dir(c.opts.TokenFile), 0o755)
-			_ = os.WriteFile(c.opts.TokenFile, []byte(reg.Token+"\n"), 0o600)
+			if err := savePrivate(c.opts.TokenFile, []byte(reg.Token+"\n")); err != nil {
+				return &reg, err
+			}
 		}
 	}
 	if reg.OIDC != nil && reg.OIDC.ClientID != "" {
@@ -373,9 +385,12 @@ func (c *Client) Register(ctx context.Context, registrationKey string, m Manifes
 		snapshot := c.oidc
 		c.mu.Unlock()
 		if c.opts.OIDCFile != "" {
-			_ = os.MkdirAll(filepath.Dir(c.opts.OIDCFile), 0o755)
-			if b, err := json.MarshalIndent(snapshot, "", "  "); err == nil {
-				_ = os.WriteFile(c.opts.OIDCFile, b, 0o600)
+			b, err := json.MarshalIndent(snapshot, "", "  ")
+			if err != nil {
+				return &reg, err
+			}
+			if err = savePrivate(c.opts.OIDCFile, b); err != nil {
+				return &reg, err
 			}
 		}
 	}

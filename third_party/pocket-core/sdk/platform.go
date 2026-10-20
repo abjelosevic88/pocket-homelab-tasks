@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// Start initializes the shared platform tables before requests are served and
-// runs the durable publisher until ctx is cancelled. The host owns the DB.
+// Init prepares shared platform tables before requests are served.
+// The host owns the database; New calls Init and Start reports its errors.
 func (c *Client) Init(ctx context.Context) error {
 	c.initOnce.Do(func() {
 		if c.opts.DB == nil {
@@ -154,6 +154,7 @@ func (c *Client) ValidateSession(ctx context.Context, id string) error {
 	return nil
 }
 
+// Start runs the durable publisher until the application shutdown context ends.
 func (c *Client) Start(ctx context.Context) error {
 	if err := c.Init(ctx); err != nil {
 		return err

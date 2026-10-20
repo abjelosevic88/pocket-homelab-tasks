@@ -13,6 +13,7 @@ ARG TARGETOS TARGETARCH VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 COPY third_party/pocket-core ./third_party/pocket-core
+RUN cd third_party/pocket-core && sha256sum -c SHA256SUMS
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist

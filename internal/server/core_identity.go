@@ -42,3 +42,11 @@ func (s *Server) sessionUser(ctx context.Context, id string) (*store.User, error
 	}
 	return u, nil
 }
+
+func (s *Server) coreOutboxHealth(ctx context.Context) any {
+	status, err := s.core.OutboxStatus(ctx)
+	if err != nil {
+		return map[string]any{"available": false}
+	}
+	return status
+}
