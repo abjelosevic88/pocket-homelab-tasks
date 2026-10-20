@@ -13,6 +13,7 @@ import { TaskDetail } from './TaskDetail'
 import { QuickAdd } from './QuickAdd'
 import { ListMenuItems, useListDialogs } from './ListMenu'
 import { Dropdown } from './pickers'
+import { Icon, ListRing, ViewIcon } from './icons'
 
 const section = (path: string) => path.split('/')[1] || 'today'
 
@@ -61,72 +62,83 @@ export default function Layout() {
   return (
     <div className={`app ${openTask ? 'has-detail' : ''}`}>
       <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="brand"><span className="logo"><img src="/favicon.svg" alt="" /></span><span className="brand-name">{title}</span></div>
+        <div className="brand">
+          <span className="logo"><img src="/favicon.svg" alt="" /></span><span className="brand-name">{title}</span>
+          <button className="icon-btn" onClick={() => setPalette(true)} title="Search (⌘K)" aria-label="Search"><Icon name="search" size={16} /></button>
+        </div>
         <div className="side-actions">
-          <button className="btn primary grow" onClick={() => setNewTask(true)} title="New task (⌘⇧N)">＋ New task</button>
-          <button className="btn icon" onClick={() => setPalette(true)} title="Search (⌘K)">⌕</button>
+          <button className="new-task" onClick={() => setNewTask(true)} title="New task (⌘⇧N)"><Icon name="plus" size={16} stroke={2.4} /><span>New task</span><kbd>⌘⇧N</kbd></button>
         </div>
         <nav className="side-nav">
-          <NavLink to="/inbox" className="nav-item"><span className="ico">▤</span><span className="grow">Inbox</span>{!!dash?.inbox && <small className="count">{dash.inbox}</small>}</NavLink>
-          <NavLink to="/today" className="nav-item"><span className="ico">☀</span><span className="grow">Today</span>{!!dash?.today && <small className={`count ${dash.overdue ? 'warn' : ''}`}>{dash.today}</small>}</NavLink>
-          <NavLink to="/upcoming" className="nav-item"><span className="ico">▦</span><span className="grow">Upcoming</span></NavLink>
-          <NavLink to="/anytime" className="nav-item"><span className="ico">☰</span><span className="grow">Anytime</span></NavLink>
-          <NavLink to="/someday" className="nav-item"><span className="ico">☾</span><span className="grow">Someday</span>{!!dash?.someday && <small className="count dim">{dash.someday}</small>}</NavLink>
-          <NavLink to="/logbook" className="nav-item"><span className="ico">☑</span><span className="grow">Logbook</span></NavLink>
-          <NavLink to="/calendar" className="nav-item"><span className="ico">▦</span><span className="grow">Calendar</span></NavLink>
+          <Nav to="/inbox" view="inbox" label="Inbox" count={dash?.inbox} />
+          <Nav to="/today" view="today" label="Today" count={dash?.today} warn={!!dash?.overdue} />
+          <Nav to="/upcoming" view="upcoming" label="Upcoming" count={dash?.upcoming_week} dim />
+          <Nav to="/anytime" view="anytime" label="Anytime" />
+          <Nav to="/someday" view="someday" label="Someday" count={dash?.someday} dim />
+          <Nav to="/logbook" view="logbook" label="Logbook" />
+          <Nav to="/calendar" view="calendar" label="Calendar" />
         </nav>
         <div className="side-scroll">
-          <div className="side-head"><span>Areas</span><span className="row" style={{ gap: 2 }}><button className="btn ghost xs" title="New area" onClick={() => actions.newArea()}>＋ area</button></span></div>
+          <div className="side-head">
+            <span>Lists</span>
+            <Dropdown className="side-head-btn" align="right" label={<Icon name="plus" size={14} stroke={2.2} />} title="New list or area">{close => <>
+              <button onClick={() => { close(); actions.newList(null) }}>New list…</button>
+              <button onClick={() => { close(); actions.newArea() }}>New area…</button>
+            </>}</Dropdown>
+          </div>
           <ul className="tree">
-            {areas.map(a => <AreaBranch key={a.id} area={a} lists={live.filter(l => l.area_id === a.id)} actions={actions} />)}
-            {loose.map(l => <ListLeaf key={l.id} list={l} actions={actions} />)}
+            {areas.map(a => <AreaBranch key={a.id} area={a} lists={live.filter(l => l.area_id === a.id && !l.is_inbox)} actions={actions} />)}
+            {loose.filter(l => !l.is_inbox).map(l => <ListLeaf key={l.id} list={l} actions={actions} />)}
           </ul>
-          <button className="side-item-add" onClick={() => actions.newList(null)}>＋ New list</button>
+          {!live.some(l => !l.is_inbox) && <button className="side-item-add" onClick={() => actions.newList(null)}><Icon name="plus" size={13} /> New list</button>}
           {tags.length > 0 && <>
-            <button className="side-head as-btn" onClick={() => setTagsOpen(o => !o)}><span>Tags</span><span className="muted">{tagsOpen ? '▾' : '▸'}</span></button>
-            {tagsOpen && <div className="tag-cloud">{tags.map(t => <NavLink key={t.tag} to={`/tag/${encodeURIComponent(t.tag)}`} className={({ isActive }) => `tag ${isActive ? 'active' : ''}`} style={{ ['--tag' as string]: tint(t.tag) }}>#{t.tag}<small>{t.count}</small></NavLink>)}</div>}
+            <button className="side-head as-btn" onClick={() => setTagsOpen(o => !o)}><span>Tags</span><Icon name={tagsOpen ? 'chevronDown' : 'chevronRight'} size={13} /></button>
+            {tagsOpen && <div className="tag-cloud">{tags.map(t => <NavLink key={t.tag} to={`/tag/${encodeURIComponent(t.tag)}`} className={({ isActive }) => `tag ${isActive ? 'active' : ''}`} style={{ ['--tag' as string]: tint(t.tag) }}>{t.tag}<small>{t.count}</small></NavLink>)}</div>}
           </>}
           {filters.length > 0 && <>
-            <button className="side-head as-btn" onClick={() => setFiltersOpen(o => !o)}><span>Filters</span><span className="muted">{filtersOpen ? '▾' : '▸'}</span></button>
-            {filtersOpen && <ul className="tree">{filters.map(f => <li key={f.id}><div className="tree-row"><NavLink to={`/filter/${f.id}`} className="tree-link" style={{ paddingLeft: 8 }}><span className="folder-ico">{f.icon || '⌕'}</span><span className="grow">{f.name}</span></NavLink></div></li>)}</ul>}
+            <button className="side-head as-btn" onClick={() => setFiltersOpen(o => !o)}><span>Filters</span><Icon name={filtersOpen ? 'chevronDown' : 'chevronRight'} size={13} /></button>
+            {filtersOpen && <ul className="tree">{filters.map(f => <li key={f.id}><div className="tree-row"><NavLink to={`/filter/${f.id}`} className="tree-link"><span className="tree-ico"><Icon name="filter" size={13} /></span><span className="grow">{f.name}</span></NavLink></div></li>)}</ul>}
           </>}
         </div>
-        <nav className="side-nav bottom">
-          <NavLink to="/trash" className="nav-item"><span className="ico">🗑</span>Trash</NavLink>
-          <NavLink to="/settings" className="nav-item"><span className="ico">⚙</span>Settings</NavLink>
-        </nav>
-        {sync && sync.mode !== 'off' && <button className={`sync-state ${syncDot}`} onClick={syncNow} title={sync.status.last_error || 'Sync with Nextcloud now'} disabled={syncing}>
-          <span className="dot" />
-          <span className="grow">{sync.status.last_error ? 'Nextcloud sync failed' : `Nextcloud · ${sync.mode === 'import' ? 'import' : 'two-way'}`}</span>
-          <small className="muted">{syncing || sync.status.running ? 'syncing…' : sync.status.last_run ? ago(sync.status.last_run) : 'never'}</small>
-        </button>}
-        <div className="foot">
-          <span className="row" title={user?.email}>{user && <Avatar user={user} />}<span className="foot-id"><span>{user?.name || user?.email}</span>{status?.version && <a className="ver" href="https://github.com/abjelosevic88/pocket-homelab-tasks/releases" target="_blank" rel="noreferrer">v{status.version.replace(/^v/, '')}</a>}</span></span>
-          <span className="row">
-            <button className="btn ghost sm" onClick={toggleTheme} title="Toggle theme">{theme === 'dark' ? '☀' : '☾'}</button>
-            {status?.auth_mode === 'local' && <button className="btn ghost sm" onClick={logout} title="Sign out">⎋</button>}
-          </span>
+        <div className="side-bottom">
+          <nav className="side-nav">
+            <Nav to="/trash" view="trash" label="Trash" />
+            <Nav to="/settings" view="settings" label="Settings" />
+          </nav>
+          {sync && sync.mode !== 'off' && <button className={`sync-state ${syncDot}`} onClick={syncNow} title={sync.status.last_error || 'Sync with Nextcloud now'} disabled={syncing}>
+            <span className="dot" />
+            <span className="grow">{sync.status.last_error ? 'Nextcloud sync failed' : `Nextcloud · ${sync.mode === 'import' ? 'import' : 'two-way'}`}</span>
+            <small>{syncing || sync.status.running ? 'syncing…' : sync.status.last_run ? ago(sync.status.last_run) : 'never'}</small>
+            <Icon name="sync" size={13} className={syncing || sync.status.running ? 'spin' : ''} />
+          </button>}
+          <div className="foot">
+            <span className="row foot-who" title={user?.email}>{user && <Avatar user={user} />}<span className="foot-id"><span>{user?.name || user?.email}</span>{status?.version && <a className="ver" href="https://github.com/abjelosevic88/pocket-homelab-tasks/releases" target="_blank" rel="noreferrer">v{status.version.replace(/^v/, '')}</a>}</span></span>
+            <span className="row" style={{ gap: 2 }}>
+              <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Light theme' : 'Dark theme'}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} /></button>
+              {status?.auth_mode === 'local' && <button className="icon-btn" onClick={logout} title="Sign out"><Icon name="logout" size={16} /></button>}
+            </span>
+          </div>
         </div>
       </aside>
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <div className="main">
         <header className="topbar">
-          <button className="btn ghost icon" onClick={() => setOpen(o => !o)} aria-label="Menu">☰</button>
+          <button className="icon-btn" onClick={() => setOpen(o => !o)} aria-label="Menu"><Icon name="menu" size={20} /></button>
           <span className="topbar-title">{title}</span>
           <span className="spacer" />
-          <button className="btn ghost icon" onClick={() => setPalette(true)} aria-label="Search">⌕</button>
-          <button className="btn ghost icon" onClick={() => setNewTask(true)} aria-label="New task">＋</button>
+          <button className="icon-btn" onClick={() => setPalette(true)} aria-label="Search"><Icon name="search" size={19} /></button>
+          <button className="icon-btn accent" onClick={() => setNewTask(true)} aria-label="New task"><Icon name="plus" size={20} stroke={2.3} /></button>
         </header>
         <div className="content-row">
           <main className="content"><ErrorBoundary key={section(loc.pathname)} where={loc.pathname}><Outlet /></ErrorBoundary></main>
           {openTask && isTaskPage && <ErrorBoundary key={'t' + openTask} where="detail"><TaskDetail id={openTask} onClose={closeDetail} /></ErrorBoundary>}
         </div>
         <nav className="tabbar">
-          <NavLink to="/inbox"><span className="ico">▤</span>Inbox</NavLink>
-          <NavLink to="/today"><span className="ico">☀</span>Today</NavLink>
-          <NavLink to="/upcoming"><span className="ico">▦</span>Upcoming</NavLink>
-          <button onClick={() => setOpen(true)}><span className="ico">☰</span>Lists</button>
-          <button onClick={() => setPalette(true)}><span className="ico">⌕</span>Search</button>
+          <NavLink to="/inbox"><Icon name="inbox" size={21} />Inbox</NavLink>
+          <NavLink to="/today"><Icon name="star" size={21} />Today</NavLink>
+          <NavLink to="/upcoming"><Icon name="calendar" size={21} />Upcoming</NavLink>
+          <button onClick={() => setOpen(true)}><Icon name="list" size={21} />Lists</button>
+          <button onClick={() => setPalette(true)}><Icon name="search" size={21} />Search</button>
         </nav>
       </div>
       {palette && <Palette onClose={() => setPalette(false)} onNew={() => { setPalette(false); setNewTask(true) }} />}
@@ -147,16 +159,15 @@ function AreaBranch({ area, lists, actions }: { area: Area; lists: List[]; actio
   return (
     <li>
       <div className="tree-row area">
-        <button className="twist" onClick={() => setOpen(o => !o)} aria-label={open ? 'Collapse' : 'Expand'}>{open ? '▾' : '▸'}</button>
-        <button className="tree-link as-btn" onClick={() => setOpen(o => !o)}><span className="dot" style={{ background: area.color || 'var(--muted)' }} /><span className="grow"><b>{area.name}</b></span><small className="muted">{total || ''}</small></button>
-        <Dropdown className="tree-more" align="right" label="⋯">{close => <>
+        <button className="tree-link as-btn" onClick={() => setOpen(o => !o)} aria-expanded={open}><span className="tree-ico area-ico" style={{ color: area.color || 'var(--muted)' }}><Icon name="folder" size={14} /></span><span className="grow">{area.name}</span><span className="twist"><Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} /></span>{!open && total > 0 && <small className="count dim">{total}</small>}</button>
+        <Dropdown className="tree-more" align="right" label={<Icon name="more" size={15} />}>{close => <>
           <button onClick={() => { close(); actions.newList(area.id) }}>New list here…</button>
           <button onClick={() => { close(); actions.renameArea(area) }}>Rename…</button>
           <button onClick={() => { close(); actions.colorArea(area) }}>Colour…</button>
           <button className="danger-text" onClick={() => { close(); actions.delArea(area) }}>Delete area…</button>
         </>}</Dropdown>
       </div>
-      {open && <ul>{lists.map(l => <ListLeaf key={l.id} list={l} actions={actions} />)}{!lists.length && <li className="muted small" style={{ padding: '2px 10px' }}>No lists</li>}</ul>}
+      {open && <ul>{lists.map(l => <ListLeaf key={l.id} list={l} actions={actions} />)}{!lists.length && <li className="muted small" style={{ padding: '2px 12px 4px 34px' }}>No lists</li>}</ul>}
     </li>
   )
 }
@@ -166,9 +177,19 @@ function ListLeaf({ list, actions }: { list: List; actions: ReturnType<typeof us
   return (
     <li>
       <div className="tree-row" data-drop-list={list.id} onContextMenu={e => { e.preventDefault(); setMenu(true) }}>
-        <NavLink to={`/list/${list.id}`} className="tree-link" style={{ paddingLeft: 8 }}><span className="dot" style={{ background: list.color }} /><span className="grow">{list.name}</span><small className="muted">{list.open_count || ''}</small></NavLink>
-        <Dropdown className="tree-more" align="right" label="⋯" open={menu || undefined} onOpenChange={o => { if (!o) setMenu(false) }}>{close => <ListMenuItems list={list} actions={actions} close={() => { close(); setMenu(false) }} />}</Dropdown>
+        <NavLink to={`/list/${list.id}`} className="tree-link"><span className="tree-ico"><ListRing color={list.color} /></span><span className="grow">{list.name}</span>{list.open_count > 0 && <small className="count dim">{list.open_count}</small>}</NavLink>
+        <Dropdown className="tree-more" align="right" label={<Icon name="more" size={15} />} open={menu || undefined} onOpenChange={o => { if (!o) setMenu(false) }}>{close => <ListMenuItems list={list} actions={actions} close={() => { close(); setMenu(false) }} />}</Dropdown>
       </div>
     </li>
+  )
+}
+
+function Nav({ to, view, label, count, warn, dim }: { to: string; view: string; label: string; count?: number; warn?: boolean; dim?: boolean }) {
+  return (
+    <NavLink to={to} className="nav-item">
+      <span className="nav-ico"><ViewIcon view={view} size={17} /></span>
+      <span className="grow">{label}</span>
+      {!!count && <small className={`count ${warn ? 'warn' : dim ? 'dim' : ''}`}>{count}</small>}
+    </NavLink>
   )
 }

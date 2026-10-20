@@ -6,6 +6,7 @@ import { ListMenuItems, useListDialogs } from '../components/ListMenu'
 import { useSections } from '../components/pickers'
 import { longDate, today } from '../lib/dates'
 import { Loading } from '../components/ui'
+import { Icon } from '../components/icons'
 
 type View = 'inbox' | 'today' | 'upcoming' | 'anytime' | 'someday' | 'logbook'
 
@@ -23,7 +24,7 @@ export function ViewPage({ view }: { view: View }) {
   const cfg = VIEWS[view]
   const sub = view === 'today' ? longDate(today()) : undefined
   const quickDefaults = view === 'today' ? { start: today() } : view === 'someday' ? { someday: true } : view === 'inbox' ? { list_id: lists.find(l => l.is_inbox)?.id ?? null } : undefined
-  return <TaskPage key={view} {...cfg} sub={sub} query={{ view }} quickDefaults={quickDefaults} filterQuery={{ view }} />
+  return <TaskPage key={view} {...cfg} view={view} sub={sub} query={{ view }} quickDefaults={quickDefaults} filterQuery={{ view }} />
 }
 
 export function ListPage() {
@@ -37,7 +38,7 @@ export function ListPage() {
   if (!list) return <Navigate to="/today" replace />
   const area = areas.find(a => a.id === list.area_id)
   return <>
-    <TaskPage key={list.id} title={list.name} sub={<>{area && <span className="muted">{area.name} · </span>}{list.description || (list.is_inbox ? 'Everything new lands here until it gets a list.' : '')}{list.archived && <span className="badge" style={{ marginLeft: 6 }}>archived</span>}</>}
+    <TaskPage key={list.id} title={list.name} sub={(area || list.description || list.is_inbox || list.archived) ? <>{[area?.name, list.description || (list.is_inbox ? 'Everything new lands here until it gets a list.' : '')].filter(Boolean).join(' · ')}{list.archived && <span className="badge" style={{ marginLeft: 6 }}>archived</span>}</> : undefined}
       query={query} grouping="sections" list={list} sections={sections} quickDefaults={{ list_id: list.id }} doneTail canReorder
       filterQuery={{ list_id: list.id }} emptyTitle="Nothing in this list" emptyText="Add a task above, or drag one here from another view."
       menu={close => <><hr /><ListMenuItems list={list} actions={actions} close={close} /></>} />
@@ -47,7 +48,7 @@ export function ListPage() {
 
 export function TagPage() {
   const { tag = '' } = useParams()
-  return <TaskPage key={tag} title={<>#{tag}</>} query={{ tag, status: 'open' }} grouping="none" showList quickDefaults={{}} filterQuery={{ tag, status: 'open' }} emptyTitle={`Nothing tagged #${tag}`} />
+  return <TaskPage key={tag} icon={<Icon name="hash" size={24} style={{ color: 'var(--muted)' }} />} title={tag} query={{ tag, status: 'open' }} grouping="none" showList quickDefaults={{}} filterQuery={{ tag, status: 'open' }} emptyTitle={`Nothing tagged #${tag}`} />
 }
 
 export function FilterPage() {
@@ -57,6 +58,6 @@ export function FilterPage() {
   if (!filters.length) return <div className="page"><Loading /></div>
   if (!f) return <Navigate to="/today" replace />
   const q = Object.fromEntries(Object.entries(f.query).filter(([, v]) => v !== undefined && v !== null && !Array.isArray(v))) as Record<string, string | number | boolean>
-  return <TaskPage key={f.id} title={<>{f.icon ? f.icon + ' ' : ''}{f.name}</>} sub={<span className="mono small muted">{Object.entries(f.query).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(',') : v}`).join(' ')}</span>} query={{ ...q, filter_id: f.id }} grouping={f.query.view ? 'server' : 'none'} showList quick={false} emptyTitle="No task matches this filter" />
+  return <TaskPage key={f.id} icon={<Icon name="filter" size={22} style={{ color: 'var(--muted)' }} />} title={f.name} sub={<span className="mono small muted">{Object.entries(f.query).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(',') : v}`).join(' ')}</span>} query={{ ...q, filter_id: f.id }} grouping={f.query.view ? 'server' : 'none'} showList quick={false} emptyTitle="No task matches this filter" />
 }
 

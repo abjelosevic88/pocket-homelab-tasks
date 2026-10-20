@@ -45,8 +45,8 @@ export function Field({ label, help, children, className = '', group = false }: 
 
 export function Loading() { return <div className="loading"><span className="spinner" /> Loading…</div> }
 
-export function Empty({ title, children }: { title: string; children?: React.ReactNode }) {
-  return <div className="empty"><h3>{title}</h3>{children && <p className="muted">{children}</p>}</div>
+export function Empty({ title, children, icon }: { title: string; children?: React.ReactNode; icon?: React.ReactNode }) {
+  return <div className="empty">{icon && <div className="empty-ico">{icon}</div>}<h3>{title}</h3>{children && <p className="muted">{children}</p>}</div>
 }
 
 export function Modal({ title, onClose, children, size = '' }: { title: React.ReactNode; onClose: () => void; children: React.ReactNode; size?: '' | 'lg' | 'xl' }) {

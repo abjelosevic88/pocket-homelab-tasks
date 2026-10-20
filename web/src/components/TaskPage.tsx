@@ -10,6 +10,7 @@ import { Confirm, Empty, Loading, Modal, PageHeader, Prompt, modalOpen, useToast
 import { TaskRow } from './TaskRow'
 import { QuickAdd, type QuickDefaults } from './QuickAdd'
 import { DatePanel, Dropdown, ListSelect, TagInput } from './pickers'
+import { Icon, ListRing, ViewIcon } from './icons'
 
 export interface TaskPageProps {
   title: React.ReactNode
@@ -29,6 +30,9 @@ export interface TaskPageProps {
   doneTail?: boolean
   doneTime?: boolean
   canReorder?: boolean
+  /** A smart view's key, for its icon in the header. */
+  view?: string
+  icon?: React.ReactNode
 }
 
 interface Group { key: string; title: React.ReactNode; tasks: Task[]; cls?: string; section?: Section | null; count?: number }
@@ -248,25 +252,33 @@ export function TaskPage(p: TaskPageProps) {
   const count = openCount
   return (
     <div className="page task-page">
-      <PageHeader title={<span className="row">{p.list && <span className="dot lg" style={{ background: p.list.color }} />}{p.title}{data && <span className="badge">{count}</span>}</span>} sub={p.sub} actions={<>
-        {p.headerActions}
-        <Dropdown className="btn ghost icon" title="More" align="right" label="⋯">{close => <>
-          {p.filterQuery && <button onClick={() => { close(); setSaveFilter(true) }}>Save current view as filter…</button>}
-          <button onClick={() => { close(); setSel(new Set(flat.map(t => t.id))) }}>Select all</button>
-          {p.grouping === 'sections' && p.list && <button onClick={() => { close(); setSectionPrompt({ kind: 'new' }) }}>Add section…</button>}
-          <button onClick={() => { close(); load() }}>Reload</button>
-          {p.menu?.(close)}
-        </>}</Dropdown>
-      </>} />
+      <header className="view-head">
+        <div className="view-title">
+          {(p.icon || p.view || p.list) && <span className="view-ico">{p.icon || (p.view ? <ViewIcon view={p.view} size={26} /> : <ListRing color={p.list!.color} size={24} />)}</span>}
+          <h1>{p.title}</h1>
+          {data && count > 0 && <span className="view-count">{count}</span>}
+          <span className="spacer" />
+          {p.headerActions}
+          <Dropdown className="icon-btn" title="More" align="right" label={<Icon name="more" size={18} />}>{close => <>
+            {p.filterQuery && <button onClick={() => { close(); setSaveFilter(true) }}>Save current view as filter…</button>}
+            <button onClick={() => { close(); setSel(new Set(flat.map(t => t.id))) }}>Select all</button>
+            {p.grouping === 'sections' && p.list && <button onClick={() => { close(); setSectionPrompt({ kind: 'new' }) }}>Add section…</button>}
+            <button onClick={() => { close(); load() }}>Reload</button>
+            {p.menu?.(close)}
+          </>}</Dropdown>
+        </div>
+        {p.sub && <div className="view-sub">{p.sub}</div>}
+      </header>
       {p.quick !== false && <QuickAdd inputRef={quickRef} defaults={p.quickDefaults} />}
       {error && <div className="callout danger mt">{error}</div>}
       {!data && !error && <Loading />}
-      {data && !flat.length && !doneTail.length && <Empty title={p.emptyTitle || 'Nothing here'}>{p.emptyText}</Empty>}
+      {data && !flat.length && !doneTail.length && <Empty title={p.emptyTitle || 'Nothing here'} icon={p.view ? <ViewIcon view={p.view} size={40} /> : p.list ? <ListRing color={p.list.color} size={36} /> : undefined}>{p.emptyText}</Empty>}
       {data && groups.map(g => (
         (g.tasks.length > 0 || g.section !== undefined) && <section key={g.key} className={`task-group ${g.cls || ''}`}>
           {(g.title || g.section) && <div className={`group-head ${g.section ? 'section-head' : ''} ${over?.kind === 'section' && g.section && over.id === g.section.id ? 'over' : ''}`} data-drop-section={g.section ? g.section.id : undefined}>
-            <h3>{g.title}{g.tasks.length > 0 && <small className="muted"> {g.tasks.length}</small>}</h3>
-            {g.section && <Dropdown className="btn ghost xs" align="right" label="⋯">{close => <>
+            <h3>{g.title}</h3>{g.tasks.length > 0 && <span className="group-count">{g.tasks.length}</span>}
+            <span className="spacer" />
+            {g.section && <Dropdown className="icon-btn sm" align="right" label={<Icon name="more" size={15} />}>{close => <>
               <button onClick={() => { close(); setSectionPrompt({ kind: 'rename', section: g.section! }) }}>Rename…</button>
               <button className="danger-text" onClick={() => { close(); setSectionDel(g.section!) }}>Delete section…</button>
             </>}</Dropdown>}
@@ -276,7 +288,7 @@ export function TaskPage(p: TaskPageProps) {
         </section>
       ))}
       {data && doneTail.length > 0 && <section className="task-group done-tail">
-        <button className="group-head as-btn" onClick={() => setDoneOpen(o => !o)}><h3>{doneOpen ? '▾' : '▸'} Done <small className="muted">{doneTail.length}</small></h3></button>
+        <button className="done-toggle" onClick={() => setDoneOpen(o => !o)}><Icon name={doneOpen ? 'chevronDown' : 'chevronRight'} size={13} />{doneOpen ? 'Hide' : 'Show'} {plural(doneTail.length, 'completed task')}</button>
         {doneOpen && <div className="task-list">{doneTail.map(t => row(t, 0, true))}</div>}
       </section>}
 

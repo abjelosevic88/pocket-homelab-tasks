@@ -3,6 +3,7 @@ import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import type { Alarm, List, Repeat, Section } from '../lib/types'
 import { PALETTE, PRIORITY_VALUE, priorityLevel, tint } from '../lib/format'
+import { Icon } from './icons'
 import { REPEAT_PRESETS, alarmLabel, dayOf, hasTime, join, label, nextWeek, thisWeekend, timeOf, today, tomorrow } from '../lib/dates'
 import { Segmented } from './ui'
 
@@ -55,7 +56,7 @@ export function DatePanel({ value, onChange, close, allowTime = true, quick = tr
 export function DateButton({ value, onChange, kind, placeholder }: { value: string | null; onChange: (v: string | null) => void; kind: 'start' | 'due'; placeholder: string }) {
   const overdue = kind === 'due' && value && dayOf(value) < today()
   return (
-    <Dropdown className={`btn sm chipbtn ${value ? 'set' : ''} ${overdue ? 'overdue' : ''}`} label={<>{kind === 'due' ? '⚑ ' : '▸ '}{value ? label(value) : placeholder}</>}>
+    <Dropdown className={`btn sm chipbtn ${value ? 'set' : ''} ${overdue ? 'overdue' : ''}`} label={<><Icon name={kind === 'due' ? 'flag' : 'calendar'} size={13} />{value ? label(value) : placeholder}</>}>
       {close => <DatePanel value={value} onChange={onChange} close={close} />}
     </Dropdown>
   )

@@ -4,6 +4,7 @@ import { useApp } from '../lib/app-context'
 import type { Alarm, Parsed, QuickAnswer, Repeat, Task } from '../lib/types'
 import { label, rruleLabel, alarmLabel } from '../lib/dates'
 import { PRIORITY_MARK, priorityLevel } from '../lib/format'
+import { Icon } from './icons'
 import { useToast } from './ui'
 import { AlarmEditor, DateButton, ListSelect, PrioritySelect, RepeatEditor, SectionSelect, TagInput } from './pickers'
 
@@ -12,9 +13,10 @@ type Part = 'due' | 'start' | 'list' | 'tags' | 'priority' | 'repeat' | 'alarm'
 export interface QuickDefaults { list_id?: number | null; section_id?: number | null; start?: string | null; due?: string | null; parent_id?: number | null; someday?: boolean }
 
 /** One line of plain words; parsed by the server as you type, chips show what it understood. */
-export function QuickAdd({ defaults = {}, placeholder = 'Add a task… e.g. "Call the bank tomorrow 9am !high #money /Home every month"', onAdded, autoFocus, compact, inputRef: outerRef, onCancel }: { defaults?: QuickDefaults; placeholder?: string; onAdded?: (t: Task) => void; autoFocus?: boolean; compact?: boolean; inputRef?: React.RefObject<HTMLInputElement | null>; onCancel?: () => void }) {
+export function QuickAdd({ defaults = {}, placeholder = 'Add a task', onAdded, autoFocus, compact, inputRef: outerRef, onCancel }: { defaults?: QuickDefaults; placeholder?: string; onAdded?: (t: Task) => void; autoFocus?: boolean; compact?: boolean; inputRef?: React.RefObject<HTMLInputElement | null>; onCancel?: () => void }) {
   const { settings, lists, bump } = useApp()
   const { toast } = useToast()
+  const [focused, setFocused] = useState(false)
   const [text, setText] = useState('')
   const [parsed, setParsed] = useState<Parsed | null>(null)
   const [removed, setRemoved] = useState<Set<Part>>(new Set())
@@ -96,13 +98,14 @@ export function QuickAdd({ defaults = {}, placeholder = 'Add a task… e.g. "Cal
   }
 
   return (
-    <div className={`quick-add ${compact ? 'compact' : ''} ${expanded ? 'expanded' : ''}`} onKeyDown={e => e.stopPropagation()}>
+    <div className={`quick-add ${compact ? 'compact' : ''} ${expanded ? 'expanded' : ''} ${focused || text ? 'active' : ''}`} onKeyDown={e => e.stopPropagation()}>
       <div className="quick-row">
-        <span className="plus">＋</span>
-        <input ref={ref} value={text} onChange={e => setText(e.target.value)} onKeyDown={key} placeholder={placeholder} autoFocus={autoFocus} aria-label="Add a task" />
-        {text && <button type="button" className="btn ghost xs" title={expanded ? 'Fewer fields' : 'More fields (⌘↵)'} onClick={() => expanded ? setExpanded(false) : expand()}>{expanded ? '⌃' : '⌄'}</button>}
+        <span className="plus"><Icon name="plus" size={14} stroke={2.4} /></span>
+        <input ref={ref} value={text} onChange={e => setText(e.target.value)} onKeyDown={key} placeholder={placeholder} autoFocus={autoFocus} aria-label="Add a task" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
+        {text && <button type="button" className="btn ghost xs" title={expanded ? 'Fewer fields' : 'More fields (⌘↵)'} onClick={() => expanded ? setExpanded(false) : expand()}><Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={14} /></button>}
         {text && <button type="button" className="btn primary sm" onClick={submit} disabled={busy}>Add</button>}
       </div>
+      {!compact && focused && !text && <div className="quick-hint">Plain words work: <kbd>tomorrow 9am</kbd> <kbd>!high</kbd> <kbd>#tag</kbd> <kbd>/List</kbd> <kbd>every week</kbd> <kbd>*15m</kbd> · ⌘↵ for all fields</div>}
       {!expanded && chips.length > 0 && <div className="quick-chips">
         {parsed && parsed.title !== text.trim() && <span className="muted small">“{parsed.title}”</span>}
         {chips.map(c => <button type="button" key={c.part} className="chip active" title="Click to drop this part" onClick={() => setRemoved(s => new Set([...s, c.part]))}>{c.text} ✕</button>)}
