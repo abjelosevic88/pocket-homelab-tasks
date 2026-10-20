@@ -143,8 +143,11 @@ func (s *Server) housekeeping(ctx context.Context) {
 			if err != nil {
 				continue
 			}
-			if paths, err := s.store.PurgeTrash(ctx, uid, st.TrashDays); err == nil {
-				s.removeFiles(paths)
+			// nothing leaves the trash while Nextcloud has not heard of the delete
+			if s.flushDeletes(ctx, uid) {
+				if paths, err := s.store.PurgeTrash(ctx, uid, st.TrashDays); err == nil {
+					s.removeFiles(paths)
+				}
 			}
 			s.store.PruneActivity(ctx, uid, 5000)
 		}

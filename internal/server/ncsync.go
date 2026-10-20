@@ -631,3 +631,18 @@ func (s *Server) handleNCRun(w http.ResponseWriter, r *http.Request) {
 	st, _ = s.store.GetSettings(ctx, uid)
 	writeJSON(w, http.StatusOK, s.ncStatusView(ctx, uid, st))
 }
+
+// flushDeletes pushes pending deletes to Nextcloud right now (two-way mode)
+// so that purging the trash cannot leave a task alive over there. It reports
+// whether Nextcloud is in step (true also when the sync is off).
+func (s *Server) flushDeletes(ctx context.Context, uid int64) bool {
+	st, err := s.store.GetSettings(ctx, uid)
+	if err != nil || st.NCMode != "two_way" {
+		return true
+	}
+	s.runSync(ctx, uid, true)
+	state := s.ncStateFor(uid)
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+	return state.LastError == ""
+}

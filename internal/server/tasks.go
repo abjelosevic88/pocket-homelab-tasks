@@ -152,6 +152,7 @@ func (s *Server) saveTask(ctx context.Context, t *store.Task, source, kind strin
 	}
 	s.scheduleAlarms(ctx, t)
 	s.touch()
+	go s.syncSoon(t.UserID)
 	if kind == "" {
 		if isNew {
 			kind = "created"
@@ -951,6 +952,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.touch()
+	go s.syncSoon(uid)
 	s.store.AddActivity(ctx, uid, id, "deleted", "api")
 	s.publish(uid, "tasks.deleted", fmt.Sprintf("task:%d", id), map[string]any{"id": id, "title": t.Title, "list_id": t.ListID})
 	w.WriteHeader(http.StatusNoContent)
@@ -1292,6 +1294,7 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.touch()
+	go s.syncSoon(uid)
 	writeJSON(w, http.StatusOK, map[string]int{"updated": n})
 }
 
@@ -1391,6 +1394,7 @@ func (s *Server) handlePurge(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, store.ErrNotFound, "purge")
 		return
 	}
+	s.flushDeletes(ctx, uid)
 	paths, err := s.store.PurgeTask(ctx, uid, t.ID)
 	if err != nil {
 		s.fail(w, err, "purge")
@@ -1403,6 +1407,7 @@ func (s *Server) handlePurge(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleEmptyTrash(w http.ResponseWriter, r *http.Request) {
 	ctx, uid := r.Context(), me(r)
+	s.flushDeletes(ctx, uid)
 	paths, err := s.store.EmptyTrash(ctx, uid)
 	if err != nil {
 		s.fail(w, err, "empty trash")
