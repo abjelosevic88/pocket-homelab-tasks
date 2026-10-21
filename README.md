@@ -10,6 +10,46 @@ deadlines separate from "when", estimates, repeat *after I finish it*, saved fil
 search, quick add in plain words, attachments, an activity log, a trash, reminders pushed from the
 server, a morning digest, and a calendar every calendar app can show and move tasks on.
 
+<p align="center"><img src="docs/screenshots/today.png" width="900" alt="Today: overdue tasks, a repeating household task and a scheduled server task, with areas, lists and tags in the sidebar"></p>
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/list.png" alt="Server rebuild list with Plan and Build sections, priorities, tags, dates and subtask counts"></td>
+    <td width="50%"><img src="docs/screenshots/task.png" alt="Task details beside the list: schedule, estimate, reminder and three subtasks"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Areas, lists and sections keep projects organised.</sub></td>
+    <td align="center"><sub>When, deadline, estimate, reminders and subtasks in one panel.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/calendar.png" alt="Month calendar with scheduled tasks, deadlines and a completed task, coloured by list"></td>
+    <td width="50%"><img src="docs/screenshots/quick-add.png" alt="Quick add previews a plain-language task with tomorrow's time, list, tag, priority, monthly repeat and reminder"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Dated tasks on a calendar; drag to reschedule.</sub></td>
+    <td align="center"><sub>Quick add in plain words, with a preview before you commit.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/calendar-apps.png" alt="Calendar and apps settings with CalDAV addresses and instructions for connecting calendar clients"></td>
+    <td width="50%"><img src="docs/screenshots/nextcloud.png" alt="Nextcloud Tasks setup with import and two-way sync modes, account fields and sync interval"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Connect your calendar and task apps over CalDAV.</sub></td>
+    <td align="center"><sub>Import Nextcloud Tasks once, or keep both in sync.</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/mobile-today.png" width="260" alt="Today on a phone, with overdue and scheduled tasks and bottom navigation">&nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-task.png" width="260" alt="Task details on a phone, with scheduling, estimate, priority and reminder controls">
+</p>
+
+<p align="center"><img src="docs/screenshots/dark.png" width="900" alt="The Server rebuild list in dark mode, with Plan and Build sections"></p>
+
+All screenshots use the built-in demo data. [How to refresh them](docs/screenshots/README.md).
+
 ## What it does
 
 **Tasks the way you think about them**
