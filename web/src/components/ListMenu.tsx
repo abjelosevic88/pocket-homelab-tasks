@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import type { Area, List } from '../lib/types'
-import { Confirm, Field, Modal, Prompt, useToast } from './ui'
+import { Confirm, Field, type MenuItem, Modal, Prompt, useToast } from './ui'
+import { Select } from './Select'
+import { Icon } from './icons'
 import { ColorPicker } from './pickers'
 
 type Dialog =
@@ -38,8 +40,8 @@ export function useListDialogs() {
   else if (d?.kind === 'rename') dialogs = <Prompt title={`Rename “${d.list.name}”`} value={d.list.name} button="Rename" onClose={close} onDone={name => { close(); run(() => api.put(`${V1}/lists/${d.list.id}`, { name }), 'Renamed') }}><DescField list={d.list} /></Prompt>
   else if (d?.kind === 'color') dialogs = <ColorModal title={`Colour of “${d.list.name}”`} value={d.list.color} onClose={close} onDone={color => { close(); run(() => api.put(`${V1}/lists/${d.list.id}`, { color })) }} />
   else if (d?.kind === 'area') dialogs = <Modal title={`Move “${d.list.name}” to an area`} onClose={close}><div className="pick-list">
-    <button className="pick-row" onClick={() => { close(); run(() => api.put(`${V1}/lists/${d.list.id}`, { area_id: null })) }}><span className="grow">No area</span></button>
-    {areas.map(a => <button key={a.id} className="pick-row" onClick={() => { close(); run(() => api.put(`${V1}/lists/${d.list.id}`, { area_id: a.id })) }}><span className="dot" style={{ background: a.color }} /><span className="grow">{a.name}</span></button>)}
+    <button type="button" className="pick-row" onClick={() => { close(); run(() => api.put(`${V1}/lists/${d.list.id}`, { area_id: null })) }}><span className="dot" style={{ background: 'transparent', boxShadow: 'inset 0 0 0 1.5px var(--border-strong)' }} /><span className="grow">No area</span>{!d.list.area_id && <Icon name="check" size={14} className="muted" />}</button>
+    {areas.map(a => <button type="button" key={a.id} className="pick-row" onClick={() => { close(); run(() => api.put(`${V1}/lists/${d.list.id}`, { area_id: a.id })) }}><span className="dot" style={{ background: a.color || 'var(--muted)' }} /><span className="grow">{a.name}</span>{d.list.area_id === a.id && <Icon name="check" size={14} className="muted" />}</button>)}
   </div></Modal>
   else if (d?.kind === 'section') dialogs = <Prompt title={`New section in “${d.list.name}”`} placeholder="Section name" button="Add" onClose={close} onDone={name => { close(); run(() => api.post(`${V1}/lists/${d.list.id}/sections`, { name }), 'Section added') }} />
   else if (d?.kind === 'delete') dialogs = <DeleteListModal list={d.list} lists={lists} onClose={close} onDone={moveTo => { close(); run(async () => { await api.del(`${V1}/lists/${d.list.id}${moveTo ? `?move_to=${moveTo}` : ''}`); navigate('/today') }, 'List deleted') }} />
@@ -59,7 +61,7 @@ function DescField({ list }: { list: List }) {
 
 function ColorModal({ title, value, onClose, onDone }: { title: string; value: string; onClose: () => void; onDone: (c: string) => void }) {
   const [c, setC] = useState(value || '#2563eb')
-  return <Modal title={title} onClose={onClose}><ColorPicker value={c} onChange={setC} /><div className="form-actions"><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={() => onDone(c)}>Save</button></div></Modal>
+  return <Modal title={title} onClose={onClose} size="sm"><ColorPicker value={c} onChange={setC} /><div className="form-actions mt"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="button" className="btn primary" onClick={() => onDone(c)}>Save</button></div></Modal>
 }
 
 function DeleteListModal({ list, lists, onClose, onDone }: { list: List; lists: List[]; onClose: () => void; onDone: (moveTo: number | null) => void }) {
@@ -68,23 +70,21 @@ function DeleteListModal({ list, lists, onClose, onDone }: { list: List; lists: 
   return (
     <Modal title={`Delete “${list.name}”?`} onClose={onClose}>
       <p>{list.open_count ? `It holds ${list.open_count} open task${list.open_count === 1 ? '' : 's'}. ` : ''}Where should its tasks go?</p>
-      <select value={to ?? ''} onChange={e => setTo(e.target.value ? Number(e.target.value) : null)}>
-        <option value="">The trash</option>
-        {others.map(l => <option key={l.id} value={l.id}>Move to {l.name}</option>)}
-      </select>
-      <div className="form-actions"><button className="btn" onClick={onClose}>Cancel</button><button className="btn danger" onClick={() => onDone(to)}>Delete list</button></div>
+      <Select<number> value={to ?? 0} onChange={v => setTo(v || null)} label="Where its tasks go" searchable={others.length > 8} options={[{ value: 0, label: 'The trash', icon: <Icon name="trash" size={14} className="muted" /> }, ...others.map(l => ({ value: l.id, label: `Move to ${l.name}`, color: l.color || undefined }))]} />
+      <div className="form-actions mt"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="button" className="btn danger" onClick={() => onDone(to)}>Delete list</button></div>
     </Modal>
   )
 }
 
-export function ListMenuItems({ list, actions, close }: { list: List; actions: ReturnType<typeof useListDialogs>['actions']; close: () => void }) {
-  return <>
-    <button onClick={() => { close(); actions.rename(list) }}>Rename…</button>
-    <button onClick={() => { close(); actions.color(list) }}>Colour…</button>
-    <button onClick={() => { close(); actions.moveArea(list) }}>Move to area…</button>
-    <button onClick={() => { close(); actions.addSection(list) }}>Add section…</button>
-    <hr />
-    {!list.is_inbox && <button onClick={() => { close(); actions.archive(list) }}>{list.archived ? 'Restore from archive' : 'Archive'}</button>}
-    {!list.is_inbox && <button className="danger-text" onClick={() => { close(); actions.del(list) }}>Delete…</button>}
-  </>
+/** The menu of a list: in the sidebar (⋯ or right-click) and on the list page. */
+export function listMenuItems(list: List, actions: ReturnType<typeof useListDialogs>['actions']): MenuItem[] {
+  return [
+    { label: 'Rename…', icon: 'edit', onSelect: () => actions.rename(list) },
+    { label: 'Colour…', icon: 'palette', onSelect: () => actions.color(list) },
+    { label: 'Move to area…', icon: 'folder', onSelect: () => actions.moveArea(list) },
+    { label: 'Add section…', icon: 'plus', onSelect: () => actions.addSection(list) },
+    ...(!list.is_inbox ? ['sep' as const,
+      { label: list.archived ? 'Restore from archive' : 'Archive', icon: 'archive', onSelect: () => actions.archive(list) },
+      { label: 'Delete…', icon: 'trash', danger: true, onSelect: () => actions.del(list) }] : []),
+  ]
 }

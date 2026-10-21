@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { api, V1 } from './api'
 import type { Area, AuthStatus, Dashboard, Filter, List, NcSync, Settings, TagCount, User } from './types'
 
+export type ThemeMode = 'system' | 'light' | 'dark'
+
 interface AppState {
   status: AuthStatus | null
   user: User | null
@@ -15,7 +17,9 @@ interface AppState {
   /** Changes whenever tasks changed anywhere: pages reload on it. */
   version: number
   bump: () => void
+  themeMode: ThemeMode
   theme: 'light' | 'dark'
+  setThemeMode: (m: ThemeMode) => void
   toggleTheme: () => void
   refresh: () => Promise<void>
   reloadMeta: () => Promise<void>
@@ -38,9 +42,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dash, setDash] = useState<Dashboard | null>(null)
   const [sync, setSync] = useState<NcSync | null>(null)
   const [version, setVersion] = useState(0)
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('pt-theme') as 'light' | 'dark') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
-
-  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('pt-theme', theme) }, [theme])
+  // The theme follows the system unless set to light or dark (stored per browser).
+  const [themeMode, setThemeModeRaw] = useState<ThemeMode>(() => (localStorage.getItem('pt-theme') as ThemeMode) || 'system')
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const h = () => setSystemDark(mq.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [])
+  const theme: 'light' | 'dark' = themeMode === 'system' ? (systemDark ? 'dark' : 'light') : themeMode
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', theme === 'dark' ? '#111113' : '#ffffff'))
+  }, [theme])
+  const setThemeMode = useCallback((m: ThemeMode) => { setThemeModeRaw(m); if (m === 'system') localStorage.removeItem('pt-theme'); else localStorage.setItem('pt-theme', m) }, [])
   useEffect(() => { if (settings?.title) document.title = settings.title }, [settings?.title])
 
   const reloadMeta = useCallback(async () => {
@@ -96,5 +112,5 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onShow) }
   }, [user, bump])
 
-  return <Ctx.Provider value={{ status, user, settings, lists, areas, tags, filters, dash, sync, version, bump, theme, toggleTheme: () => setTheme(t => t === 'dark' ? 'light' : 'dark'), refresh, reloadMeta, setUser, setSettings, setSync }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ status, user, settings, lists, areas, tags, filters, dash, sync, version, bump, themeMode, theme, setThemeMode, toggleTheme: () => setThemeMode(theme === 'dark' ? 'light' : 'dark'), refresh, reloadMeta, setUser, setSettings, setSync }}>{children}</Ctx.Provider>
 }

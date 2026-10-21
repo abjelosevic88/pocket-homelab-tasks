@@ -7,6 +7,7 @@ import { snippetParts } from '../lib/format'
 import { Empty, Loading, PageHeader, useDebounce, useToast } from '../components/ui'
 import { TaskRow } from '../components/TaskRow'
 import { useApp } from '../lib/app-context'
+import { Icon } from '../components/icons'
 
 export default function Search() {
   const [params, setParams] = useSearchParams()
@@ -31,11 +32,12 @@ export default function Search() {
     try { const r = await api.post<{ task: Task; next?: Task }>(`${V1}/tasks/${t.id}/complete`, { done: !done }); if (r.next) toast(`Repeats: next on ${label(r.next.start || r.next.due)}`); bump() } catch (e) { toast((e as Error).message, 'err') }
   }
   return (
-    <div className="page task-page">
+    <div className="page search-page">
       <PageHeader title="Search" sub="Titles, notes and tags; word beginnings match, accents do not matter." />
-      <div className="tool-search mb"><span className="muted">⌕</span><input autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="Search tasks…" /></div>
+      <div className="search-field lg mb"><Icon name="search" size={17} /><input autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="Search tasks…" aria-label="Search tasks" /></div>
       {busy && !hits && <Loading />}
-      {hits && !hits.length && <Empty title={`Nothing for “${q}”`} />}
+      {hits && !hits.length && <Empty icon="search" title={`Nothing for “${q}”`} />}
+      {!q.trim() && !hits && <Empty icon="search" title="Search every task">Words in titles, notes and tags. ⌘K searches from anywhere.</Empty>}
       {hits && hits.length > 0 && <div className="task-list">
         {hits.map(h => <div key={h.id} className="task-slot">
           <TaskRow task={h} showList onToggle={toggle} onOpen={open} />

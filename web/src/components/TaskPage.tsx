@@ -6,10 +6,10 @@ import type { Filter, List, Section, Task, TaskGroup, TaskList, TaskQuery } from
 import { inField, onTask } from '../lib/events'
 import { dayHeading, label, today } from '../lib/dates'
 import { plural } from '../lib/format'
-import { Confirm, Empty, Loading, Modal, PageHeader, Prompt, modalOpen, useToast } from './ui'
+import { Confirm, Empty, Loading, type MenuItem, MenuButton, Modal, Prompt, modalOpen, useToast } from './ui'
 import { TaskRow } from './TaskRow'
 import { QuickAdd, type QuickDefaults } from './QuickAdd'
-import { DatePanel, Dropdown, ListSelect, TagInput } from './pickers'
+import { DatePanel, TagInput } from './pickers'
 import { Icon, ListRing, ViewIcon } from './icons'
 
 export interface TaskPageProps {
@@ -23,7 +23,8 @@ export interface TaskPageProps {
   quick?: boolean
   quickDefaults?: QuickDefaults
   headerActions?: React.ReactNode
-  menu?: (close: () => void) => React.ReactNode
+  /** Extra entries for the ⋯ menu in the header (a list's own menu). */
+  menu?: MenuItem[]
   filterQuery?: TaskQuery
   emptyTitle?: string
   emptyText?: React.ReactNode
@@ -167,6 +168,7 @@ export function TaskPage(p: TaskPageProps) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (inField(e.target) || modalOpen() || e.metaKey || e.ctrlKey || e.altKey) return
+      if (document.querySelector('.menu, .popover, .select-pop, .sheet-backdrop')) return
       if ((e.target as HTMLElement)?.closest?.('.task-detail')) return
       const i = flat.findIndex(t => t.id === focus)
       const cur = i >= 0 ? flat[i] : null
@@ -259,13 +261,13 @@ export function TaskPage(p: TaskPageProps) {
           {data && count > 0 && <span className="view-count">{count}</span>}
           <span className="spacer" />
           {p.headerActions}
-          <Dropdown className="icon-btn" title="More" align="right" label={<Icon name="more" size={18} />}>{close => <>
-            {p.filterQuery && <button onClick={() => { close(); setSaveFilter(true) }}>Save current view as filter…</button>}
-            <button onClick={() => { close(); setSel(new Set(flat.map(t => t.id))) }}>Select all</button>
-            {p.grouping === 'sections' && p.list && <button onClick={() => { close(); setSectionPrompt({ kind: 'new' }) }}>Add section…</button>}
-            <button onClick={() => { close(); load() }}>Reload</button>
-            {p.menu?.(close)}
-          </>}</Dropdown>
+          <MenuButton label="More" align="right" width={230} items={() => [
+            ...(p.filterQuery ? [{ label: 'Save this view as a filter…', icon: 'filter', onSelect: () => setSaveFilter(true) }] : []),
+            { label: 'Select all', icon: 'check', hint: '⇧A', onSelect: () => setSel(new Set(flat.map(t => t.id))) },
+            ...(p.grouping === 'sections' && p.list ? [{ label: 'Add section…', icon: 'plus', onSelect: () => setSectionPrompt({ kind: 'new' }) }] : []),
+            { label: 'Reload', icon: 'refresh', onSelect: () => load() },
+            ...(p.menu?.length ? ['sep' as const, ...p.menu] : []),
+          ]}><Icon name="more" size={18} /></MenuButton>
         </div>
         {p.sub && <div className="view-sub">{p.sub}</div>}
       </header>
@@ -278,35 +280,35 @@ export function TaskPage(p: TaskPageProps) {
           {(g.title || g.section) && <div className={`group-head ${g.section ? 'section-head' : ''} ${over?.kind === 'section' && g.section && over.id === g.section.id ? 'over' : ''}`} data-drop-section={g.section ? g.section.id : undefined}>
             <h3>{g.title}</h3>{g.tasks.length > 0 && <span className="group-count">{g.tasks.length}</span>}
             <span className="spacer" />
-            {g.section && <Dropdown className="icon-btn sm" align="right" label={<Icon name="more" size={15} />}>{close => <>
-              <button onClick={() => { close(); setSectionPrompt({ kind: 'rename', section: g.section! }) }}>Rename…</button>
-              <button className="danger-text" onClick={() => { close(); setSectionDel(g.section!) }}>Delete section…</button>
-            </>}</Dropdown>}
+            {g.section && <MenuButton label={`Options for ${g.section.name}`} className="btn ghost icon-only sm group-more" align="right" width={200} items={[
+              { label: 'Rename…', icon: 'edit', onSelect: () => setSectionPrompt({ kind: 'rename', section: g.section! }) },
+              { label: 'Delete section…', icon: 'trash', danger: true, onSelect: () => setSectionDel(g.section!) },
+            ]}><Icon name="more" size={15} /></MenuButton>}
           </div>}
           <div className="task-list">{g.tasks.map(t => row(t))}</div>
           {g.section && p.list && <QuickAdd compact defaults={{ ...p.quickDefaults, list_id: p.list.id, section_id: g.section.id }} placeholder={`Add to ${g.section.name}…`} />}
         </section>
       ))}
       {data && doneTail.length > 0 && <section className="task-group done-tail">
-        <button className="done-toggle" onClick={() => setDoneOpen(o => !o)}><Icon name={doneOpen ? 'chevronDown' : 'chevronRight'} size={13} />{doneOpen ? 'Hide' : 'Show'} {plural(doneTail.length, 'completed task')}</button>
+        <button type="button" className="done-toggle" onClick={() => setDoneOpen(o => !o)}><Icon name={doneOpen ? 'chevronDown' : 'chevronRight'} size={13} />{doneOpen ? 'Hide' : 'Show'} {plural(doneTail.length, 'completed task')}</button>
         {doneOpen && <div className="task-list">{doneTail.map(t => row(t, 0, true))}</div>}
       </section>}
 
       {sel.size > 0 && <div className="batch-bar">
         <span className="grow"><b>{plural(sel.size, 'task')}</b> selected</span>
-        <button className="btn sm" onClick={() => batch({ ids: [...sel], action: 'complete' }, 'Completed')}>Complete</button>
-        <button className="btn sm" onClick={() => setMoveOpen([...sel])}>Move…</button>
-        <button className="btn sm" onClick={() => setDateOpen({ ids: [...sel], kind: 'start' })}>When…</button>
-        <button className="btn sm" onClick={() => setDateOpen({ ids: [...sel], kind: 'due' })}>Deadline…</button>
-        <button className="btn sm" onClick={() => setTagOpen([...sel])}>Tags…</button>
-        <button className="btn sm danger-text" onClick={() => setConfirmDel([...sel])}>Delete</button>
-        <button className="btn ghost sm" onClick={() => setSel(new Set())} aria-label="Clear selection">✕</button>
+        <button type="button" className="btn sm" onClick={() => batch({ ids: [...sel], action: 'complete' }, 'Completed')}><Icon name="check" size={14} />Complete</button>
+        <button type="button" className="btn sm" onClick={() => setMoveOpen([...sel])}><Icon name="move" size={14} />Move…</button>
+        <button type="button" className="btn sm" onClick={() => setDateOpen({ ids: [...sel], kind: 'start' })}><Icon name="calendar" size={14} />When…</button>
+        <button type="button" className="btn sm" onClick={() => setDateOpen({ ids: [...sel], kind: 'due' })}><Icon name="flag" size={14} />Deadline…</button>
+        <button type="button" className="btn sm" onClick={() => setTagOpen([...sel])}><Icon name="hash" size={14} />Tags…</button>
+        <button type="button" className="btn sm danger-ghost" onClick={() => setConfirmDel([...sel])}><Icon name="trash" size={14} />Delete</button>
+        <button type="button" className="btn ghost icon-only sm" onClick={() => setSel(new Set())} aria-label="Clear selection" title="Clear selection (esc)"><Icon name="x" size={15} /></button>
       </div>}
 
       {drag && <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 8 }}>{drag.title}</div>}
 
       {moveOpen && <MoveModal ids={moveOpen} onClose={() => setMoveOpen(null)} onDone={async (listId) => { const ids = moveOpen; setMoveOpen(null); if (ids.length === 1) { try { await api.post(`${V1}/tasks/${ids[0]}/move`, { list_id: listId, section_id: null }); bump() } catch (e) { toast((e as Error).message, 'err') } } else batch({ ids, set: { list_id: listId } }, `Moved to ${listOf(listId)?.name}`) }} />}
-      {dateOpen && <Modal title={dateOpen.kind === 'due' ? 'Deadline' : 'When'} onClose={() => setDateOpen(null)}>
+      {dateOpen && <Modal title={dateOpen.kind === 'due' ? 'Deadline' : 'When'} onClose={() => setDateOpen(null)} size="sm">
         <DatePanel value={dateOpen.ids.length === 1 ? (byId.get(dateOpen.ids[0]) || flat.find(t => t.id === dateOpen.ids[0]))?.[dateOpen.kind] ?? null : null} onChange={v => { const d = dateOpen; setDateOpen(null); if (d.ids.length > 1) batch({ ids: d.ids, set: { [d.kind]: v } }); else putOne(d.ids[0], { [d.kind]: v }) }} close={() => setDateOpen(null)} />
       </Modal>}
       {tagOpen && <TagModal onClose={() => setTagOpen(null)} onDone={(add, remove) => { const ids = tagOpen; setTagOpen(null); batch({ ids, set: { add_tags: add, remove_tags: remove } }, 'Tags updated') }} />}
@@ -323,10 +325,10 @@ function MoveModal({ ids, onClose, onDone }: { ids: number[]; onClose: () => voi
   const [q, setQ] = useState('')
   const live = lists.filter(l => !l.archived && (!q || l.name.toLowerCase().includes(q.toLowerCase())))
   return (
-    <Modal title={`Move ${plural(ids.length, 'task')} to…`} onClose={onClose}>
-      <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Find a list…" className="mb" onKeyDown={e => { if (e.key === 'Enter' && live[0]) onDone(live[0].id) }} />
+    <Modal title={`Move ${plural(ids.length, 'task')} to…`} onClose={onClose} size="sm">
+      <div className="search-field mb"><Icon name="search" size={15} /><input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Find a list…" onKeyDown={e => { if (e.key === 'Enter' && live[0]) onDone(live[0].id) }} /></div>
       <div className="pick-list">
-        {live.map(l => <button key={l.id} className="pick-row" onClick={() => onDone(l.id)}><span className="dot" style={{ background: l.color }} /><span className="grow">{l.name}</span><small className="muted">{areas.find(a => a.id === l.area_id)?.name || ''}</small></button>)}
+        {live.map(l => <button type="button" key={l.id} className="pick-row" onClick={() => onDone(l.id)}><ListRing color={l.color} /><span className="grow">{l.name}</span><small className="muted">{areas.find(a => a.id === l.area_id)?.name || ''}</small></button>)}
         {!live.length && <p className="muted">No list matches.</p>}
       </div>
     </Modal>
@@ -337,11 +339,11 @@ function TagModal({ onClose, onDone }: { onClose: () => void; onDone: (add: stri
   const [add, setAdd] = useState<string[]>([])
   const [remove, setRemove] = useState<string[]>([])
   return (
-    <Modal title="Tags" onClose={onClose}>
-      <div className="grid" style={{ gap: 14 }}>
+    <Modal title="Tags" onClose={onClose} size="sm">
+      <div className="stack">
         <div className="field"><span className="label">Add</span><TagInput value={add} onChange={setAdd} autoFocus /></div>
         <div className="field"><span className="label">Remove</span><TagInput value={remove} onChange={setRemove} /></div>
-        <div className="form-actions"><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={() => onDone(add, remove)} disabled={!add.length && !remove.length}>Apply</button></div>
+        <div className="form-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button type="button" className="btn primary" onClick={() => onDone(add, remove)} disabled={!add.length && !remove.length}>Apply</button></div>
       </div>
     </Modal>
   )

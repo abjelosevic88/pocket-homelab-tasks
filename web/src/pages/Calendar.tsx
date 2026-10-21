@@ -6,6 +6,7 @@ import type { CalendarDays, Task } from '../lib/types'
 import { addDays, addMonths, dayOf, fmtTime, monthGrid, monthTitle, sameMonth, today, wdDate, weekDays, weekdayNames, withTime, hasTime, timeOf, join } from '../lib/dates'
 import { Modal, PageHeader, Segmented, useAsync, useToast } from '../components/ui'
 import { QuickAdd } from '../components/QuickAdd'
+import { Icon } from '../components/icons'
 import { priorityLevel } from '../lib/format'
 
 type Mode = 'month' | 'week'
@@ -72,9 +73,11 @@ export default function Calendar() {
     <div className="page cal-page">
       <PageHeader title="Calendar" sub={mode === 'month' ? monthTitle(anchor) : `${wdDate(rows[0][0])} – ${wdDate(rows[0][6])}`} actions={<div className="row wrap">
         <Segmented size="sm" value={mode} onChange={setMode} options={[{ value: 'month', label: 'Month' }, { value: 'week', label: 'Week' }]} />
-        <button className="btn sm" onClick={() => step(-1)} aria-label="Previous">‹</button>
-        <button className="btn ghost sm" onClick={() => setAnchor(today())}>Today</button>
-        <button className="btn sm" onClick={() => step(1)} aria-label="Next">›</button>
+        <button type="button" className="btn sm" onClick={() => setAnchor(today())}>Today</button>
+        <span className="row" style={{ gap: 2 }}>
+          <button type="button" className="btn ghost icon-only sm" onClick={() => step(-1)} aria-label="Previous" title="Previous"><Icon name="chevron-left" size={17} /></button>
+          <button type="button" className="btn ghost icon-only sm" onClick={() => step(1)} aria-label="Next" title="Next"><Icon name="chevron-right" size={17} /></button>
+        </span>
       </div>} />
       <div className={`cal ${mode}`}>
         {names.map(n => <div key={n} className="cal-head">{n}</div>)}
@@ -86,7 +89,7 @@ export default function Calendar() {
               <div className="cal-n"><span className="n">{day.slice(8).replace(/^0/, '')}</span>{mode === 'week' && <small className="muted">{its.length ? its.length : ''}</small>}</div>
               <div className="cal-items">
                 {its.slice(0, mode === 'week' ? 50 : 4).map(it => <CalItem key={it.task.id + it.kind} it={it} onOpen={openTask} onPress={(it, e) => { if (e.pointerType !== 'touch' && it.kind !== 'done') press.current = { item: it, x: e.clientX, y: e.clientY } }} dragging={drag?.item.task.id === it.task.id} />)}
-                {mode === 'month' && its.length > 4 && <button className="cal-more" onClick={e => { e.stopPropagation(); setAnchor(day); setMode('week') }}>+{its.length - 4} more</button>}
+                {mode === 'month' && its.length > 4 && <button type="button" className="cal-overflow" onClick={e => { e.stopPropagation(); setAnchor(day); setMode('week') }}>+{its.length - 4} more</button>}
               </div>
             </div>
           )
@@ -95,7 +98,7 @@ export default function Calendar() {
       {drag && <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 8 }}>{drag.item.task.title}</div>}
       {addDay && <Modal title={`New task · ${wdDate(addDay)}`} onClose={() => setAddDay(null)}>
         <QuickAdd autoFocus defaults={{ start: addDay }} onAdded={() => setAddDay(null)} onCancel={() => setAddDay(null)} placeholder="Add a task for this day…" />
-        <p className="muted small mt-s">A time in the text (e.g. <code>9am</code>) makes it a timed task. {addDay && <button className="link-btn" style={{ color: 'var(--accent-hover)' }} onClick={() => setAddDay(join(addDay, settings?.day_start || '09:00'))}>Start at {settings?.day_start || '09:00'}</button>}</p>
+        <p className="muted small mt-s">A time in the text (e.g. <code>9am</code>) makes it a timed task. {addDay && <button type="button" className="link-btn" onClick={() => setAddDay(join(addDay, settings?.day_start || '09:00'))}>Start at {settings?.day_start || '09:00'}</button>}</p>
       </Modal>}
     </div>
   )
@@ -108,7 +111,7 @@ function CalItem({ it, onOpen, onPress, dragging }: { it: Item; onOpen: (t: Task
   return (
     <button type="button" className={`cal-item ${it.kind} ${t.overdue ? 'overdue' : ''} ${dragging ? 'dragging' : ''}`} style={{ ['--lc' as string]: t.list?.color || 'var(--accent)' }} onClick={e => { e.stopPropagation(); onOpen(t) }} onPointerDown={e => onPress(it, e)} title={`${t.title}${t.list ? ` · ${t.list.name}` : ''}`}>
       <span className="bar" />
-      {it.kind === 'done' ? <span className="ico">✓</span> : it.kind === 'due' ? <span className="ico">⚑</span> : null}
+      {it.kind === 'done' ? <span className="ico"><Icon name="check" size={11} strokeWidth={2.6} /></span> : it.kind === 'due' ? <span className="ico"><Icon name="flag" size={11} /></span> : null}
       {time && <span className="time">{time}</span>}
       <span className="grow ellipsis">{pr !== 'none' && it.kind !== 'done' && <span className={`prio ${pr}`}>!</span>}{t.title}</span>
     </button>

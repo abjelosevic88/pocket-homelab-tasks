@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { useApp } from '../lib/app-context'
 import { TaskPage, type TaskPageProps } from '../components/TaskPage'
-import { ListMenuItems, useListDialogs } from '../components/ListMenu'
+import { listMenuItems, useListDialogs } from '../components/ListMenu'
 import { useSections } from '../components/pickers'
 import { longDate, today } from '../lib/dates'
 import { Loading } from '../components/ui'
@@ -41,7 +41,7 @@ export function ListPage() {
     <TaskPage key={list.id} title={list.name} sub={(area || list.description || list.is_inbox || list.archived) ? <>{[area?.name, list.description || (list.is_inbox ? 'Everything new lands here until it gets a list.' : '')].filter(Boolean).join(' · ')}{list.archived && <span className="badge" style={{ marginLeft: 6 }}>archived</span>}</> : undefined}
       query={query} grouping="sections" list={list} sections={sections} quickDefaults={{ list_id: list.id }} doneTail canReorder
       filterQuery={{ list_id: list.id }} emptyTitle="Nothing in this list" emptyText="Add a task above, or drag one here from another view."
-      menu={close => <><hr /><ListMenuItems list={list} actions={actions} close={close} /></>} />
+      menu={listMenuItems(list, actions)} />
     {dialogs}
   </>
 }

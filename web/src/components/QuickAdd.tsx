@@ -39,15 +39,15 @@ export function QuickAdd({ defaults = {}, placeholder = 'Add a task', onAdded, a
     return () => clearTimeout(h)
   }, [text, listId])
 
-  const chips: { part: Part; text: string }[] = []
+  const chips: { part: Part; icon: string; text: string }[] = []
   if (parsed) {
-    if (parsed.start && !removed.has('start')) chips.push({ part: 'start', text: `▸ ${label(parsed.start)}` })
-    if (parsed.due && !removed.has('due')) chips.push({ part: 'due', text: `⚑ ${label(parsed.due)}` })
-    if (parsed.list_id && parsed.list_id !== listId && !removed.has('list')) { const l = lists.find(l => l.id === parsed.list_id); if (l) chips.push({ part: 'list', text: `▤ ${l.name}` }) }
-    if (parsed.tags?.length && !removed.has('tags')) chips.push({ part: 'tags', text: parsed.tags.map(t => `#${t}`).join(' ') })
-    if (parsed.priority && !removed.has('priority')) chips.push({ part: 'priority', text: `${PRIORITY_MARK[priorityLevel(parsed.priority)]} ${priorityLevel(parsed.priority)}` })
-    if (parsed.repeat && !removed.has('repeat')) chips.push({ part: 'repeat', text: `↻ ${rruleLabel(parsed.repeat.rrule)}` })
-    if (parsed.alarm && !removed.has('alarm')) chips.push({ part: 'alarm', text: `⏰ ${alarmLabel(parsed.alarm)}` })
+    if (parsed.start && !removed.has('start')) chips.push({ part: 'start', icon: 'calendar', text: label(parsed.start) })
+    if (parsed.due && !removed.has('due')) chips.push({ part: 'due', icon: 'flag', text: label(parsed.due) })
+    if (parsed.list_id && parsed.list_id !== listId && !removed.has('list')) { const l = lists.find(l => l.id === parsed.list_id); if (l) chips.push({ part: 'list', icon: 'list', text: l.name }) }
+    if (parsed.tags?.length && !removed.has('tags')) chips.push({ part: 'tags', icon: 'hash', text: parsed.tags.join(' #') })
+    if (parsed.priority && !removed.has('priority')) chips.push({ part: 'priority', icon: 'alert', text: `${PRIORITY_MARK[priorityLevel(parsed.priority)]} ${priorityLevel(parsed.priority)}` })
+    if (parsed.repeat && !removed.has('repeat')) chips.push({ part: 'repeat', icon: 'repeat', text: rruleLabel(parsed.repeat.rrule) })
+    if (parsed.alarm && !removed.has('alarm')) chips.push({ part: 'alarm', icon: 'bell', text: alarmLabel(parsed.alarm) })
   }
 
   const body = (): Record<string, unknown> => {
@@ -102,13 +102,13 @@ export function QuickAdd({ defaults = {}, placeholder = 'Add a task', onAdded, a
       <div className="quick-row">
         <span className="plus"><Icon name="plus" size={14} stroke={2.4} /></span>
         <input ref={ref} value={text} onChange={e => setText(e.target.value)} onKeyDown={key} placeholder={placeholder} autoFocus={autoFocus} aria-label="Add a task" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
-        {text && <button type="button" className="btn ghost xs" title={expanded ? 'Fewer fields' : 'More fields (⌘↵)'} onClick={() => expanded ? setExpanded(false) : expand()}><Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={14} /></button>}
+        {text && <button type="button" className="btn ghost icon-only sm" title={expanded ? 'Fewer fields' : 'More fields (⌘↵)'} aria-label={expanded ? 'Fewer fields' : 'More fields'} onClick={() => expanded ? setExpanded(false) : expand()}><Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={15} /></button>}
         {text && <button type="button" className="btn primary sm" onClick={submit} disabled={busy}>Add</button>}
       </div>
       {!compact && focused && !text && <div className="quick-hint">Plain words work: <kbd>tomorrow 9am</kbd> <kbd>!high</kbd> <kbd>#tag</kbd> <kbd>/List</kbd> <kbd>every week</kbd> <kbd>*15m</kbd> · ⌘↵ for all fields</div>}
       {!expanded && chips.length > 0 && <div className="quick-chips">
         {parsed && parsed.title !== text.trim() && <span className="muted small">“{parsed.title}”</span>}
-        {chips.map(c => <button type="button" key={c.part} className="chip active" title="Click to drop this part" onClick={() => setRemoved(s => new Set([...s, c.part]))}>{c.text} ✕</button>)}
+        {chips.map(c => <button type="button" key={c.part} className="chip active" title="Click to drop this part" onClick={() => setRemoved(s => new Set([...s, c.part]))}><Icon name={c.icon} size={12} />{c.text}<Icon name="x" size={11} className="chip-x" /></button>)}
       </div>}
       {expanded && <div className="quick-more">
         <textarea rows={2} placeholder="Notes (Markdown)" value={x.notes} onChange={e => setX({ ...x, notes: e.target.value })} />
@@ -118,10 +118,10 @@ export function QuickAdd({ defaults = {}, placeholder = 'Add a task', onAdded, a
           <DateButton kind="start" value={x.start} onChange={v => setX({ ...x, start: v })} placeholder="When" />
           <DateButton kind="due" value={x.due} onChange={v => setX({ ...x, due: v })} placeholder="Deadline" />
         </div>
-        <div className="row wrap"><span className="muted small" style={{ width: 60 }}>Priority</span><PrioritySelect value={x.priority} onChange={p => setX({ ...x, priority: p })} /></div>
-        <div className="row wrap" style={{ alignItems: 'flex-start' }}><span className="muted small" style={{ width: 60, paddingTop: 6 }}>Repeat</span><div className="grow"><RepeatEditor value={x.repeat} onChange={r => setX({ ...x, repeat: r })} /></div></div>
-        <div className="row wrap" style={{ alignItems: 'flex-start' }}><span className="muted small" style={{ width: 60, paddingTop: 6 }}>Tags</span><div className="grow"><TagInput value={x.tags} onChange={t => setX({ ...x, tags: t })} /></div></div>
-        <div className="row wrap" style={{ alignItems: 'flex-start' }}><span className="muted small" style={{ width: 60, paddingTop: 6 }}>Alarm</span><div className="grow"><AlarmEditor value={x.alarms} onChange={a => setX({ ...x, alarms: a })} timed={!!(x.start && x.start.length > 10) || !!(x.due && x.due.length > 10)} /></div></div>
+        <div className="row wrap"><span className="qa-label">Priority</span><PrioritySelect value={x.priority} onChange={p => setX({ ...x, priority: p })} /></div>
+        <div className="row wrap" style={{ alignItems: 'flex-start' }}><span className="qa-label top">Repeat</span><div className="grow"><RepeatEditor value={x.repeat} onChange={r => setX({ ...x, repeat: r })} /></div></div>
+        <div className="row wrap" style={{ alignItems: 'flex-start' }}><span className="qa-label top">Tags</span><div className="grow"><TagInput value={x.tags} onChange={t => setX({ ...x, tags: t })} /></div></div>
+        <div className="row wrap" style={{ alignItems: 'flex-start' }}><span className="qa-label top">Alarm</span><div className="grow"><AlarmEditor value={x.alarms} onChange={a => setX({ ...x, alarms: a })} timed={!!(x.start && x.start.length > 10) || !!(x.due && x.due.length > 10)} /></div></div>
         <div className="row" style={{ justifyContent: 'flex-end' }}><button type="button" className="btn sm" onClick={() => setExpanded(false)}>Cancel</button><button type="button" className="btn primary sm" onClick={submit} disabled={busy || !text.trim()}>Add task</button></div>
       </div>}
     </div>

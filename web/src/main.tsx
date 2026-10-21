@@ -1,7 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import './styles.css'
+import './styles/base.css'
+import './styles/app.css'
+import './styles/tasks.css'
+import './styles/settings.css'
 import { AppProvider, useApp } from './lib/app-context'
 import { Loading, ToastProvider } from './components/ui'
 import Layout from './components/Layout'
@@ -16,7 +19,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 function Gate({ children }: { children: React.ReactNode }) {
   const { status, user } = useApp()
   const loc = useLocation()
-  if (!status) return <div className="login-wrap"><Loading /></div>
+  if (!status) return <div className="boot"><img src="/favicon.svg" alt="" /><Loading /></div>
   if (status.needs_setup) return <Navigate to="/setup" replace />
   if (!user) return <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />
   return <>{children}</>
@@ -27,6 +30,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login mode="login" />} />
       <Route path="/setup" element={<Login mode="setup" />} />
+      <Route path="/settings/:tab?" element={<Gate><ErrorBoundary where="settings"><Settings /></ErrorBoundary></Gate>} />
       <Route element={<Gate><Layout /></Gate>}>
         <Route path="/" element={<Navigate to="/today" replace />} />
         <Route path="/inbox" element={<ViewPage view="inbox" />} />
@@ -41,7 +45,6 @@ function App() {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/search" element={<Search />} />
         <Route path="/trash" element={<Trash />} />
-        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/today" replace />} />
       </Route>
     </Routes>
