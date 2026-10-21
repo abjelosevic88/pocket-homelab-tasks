@@ -69,7 +69,7 @@ try {
       source: `localStorage.setItem('pt-theme', '${dark ? 'dark' : 'light'}')`,
     }))
     await s('Page.navigate', { url: base + path })
-    await waitFor("document.querySelector('.sidebar .tree-link') && document.querySelector('.page') && !document.querySelector('.loading')")
+    await waitFor("(document.querySelector('.sidebar .sb-row') && document.querySelector('.page') || document.querySelector('.set-page .set-section')) && !document.querySelector('.loading')")
     if (ready) await waitFor(ready)
     if (before) await before({ s, evaluate, waitFor })
     await evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))')
@@ -91,14 +91,14 @@ try {
       await waitFor("document.querySelectorAll('.quick-chips .chip').length >= 5")
     },
   })
-  await shot('calendar-apps', '/settings?tab=calendar', {
+  await shot('calendar-apps', '/settings/calendar', {
     ready: "document.querySelector('input[value$=\"/dav/\"]')",
     before: async ({ evaluate }) => {
-      await evaluate("document.querySelector('.apps-how').open = true")
-      await evaluate("document.querySelector('input[value$=\"/dav/\"]').closest('.card').scrollIntoView()")
+      await evaluate("document.querySelector('.set-howto details').open = true")
+      await evaluate("document.querySelector('input[value$=\"/dav/\"]').closest('.set-section').scrollIntoView()")
     },
   })
-  await shot('nextcloud', '/settings?tab=nextcloud', {
+  await shot('nextcloud', '/settings/nextcloud', {
     ready: "document.body.innerText.includes('Two-way')",
     before: async ({ evaluate, waitFor }) => {
       await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent === 'Two-way').click()")

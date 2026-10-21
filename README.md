@@ -42,7 +42,7 @@ server, a morning digest, and a calendar every calendar app can show and move ta
 </table>
 
 <p align="center">
-  <img src="docs/screenshots/mobile-today.png" width="260" alt="Today on a phone, with overdue and scheduled tasks and bottom navigation">&nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-today.png" width="260" alt="Today on a phone, with overdue and scheduled tasks, the menu button and the new-task button">&nbsp;&nbsp;
   <img src="docs/screenshots/mobile-task.png" width="260" alt="Task details on a phone, with scheduling, estimate, priority and reminder controls">
 </p>
 
@@ -64,7 +64,10 @@ All screenshots use the built-in demo data. [How to refresh them](docs/screensho
 - Quick add in plain words: `Call the bank tomorrow 9am !high #money /Home every month *30m`.
   The preview shows what was understood before you press Enter.
 - Keyboard-driven: `n` new, `/` quick add, `⌘K` find, `t` today, `d` deadline, `1 2 3` priority,
-  `s` someday, `m` move, Space done, multi-select with a batch bar, drag to reorder or move.
+  `s` someday, `m` move, Space done, `⌘⇧N` new task anywhere, `[` sidebar, `?` all shortcuts;
+  multi-select with a batch bar, drag to reorder or move.
+- Light and dark themes that follow the system (or set either from the avatar menu); a sidebar that
+  becomes a drawer on phones, with a new-task button at the bottom.
 - Full-text search (SQLite FTS5, accents folded), trash with restore, an activity log per task.
 
 **A real CalDAV server**
