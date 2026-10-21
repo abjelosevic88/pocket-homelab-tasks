@@ -189,6 +189,7 @@ type Query struct {
 	Now         string   `json:"-"` // the person's now, floating
 	Deleted     bool     `json:"-"` // the trash
 	IDs         []int64  `json:"-"`
+	Links       []string `json:"-"` // ItemKey of each url=: only tasks linking to one (mentions.go)
 }
 
 // Group is a heading over some ids in a list answer.

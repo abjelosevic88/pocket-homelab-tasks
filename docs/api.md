@@ -135,12 +135,21 @@ interface Settings {
 GET /tasks query: `view=inbox|today|upcoming|anytime|someday|logbook|all`, `list_id`, `section_id`,
 `tag`, `status=open|done|all` (view implies it), `priority`, `q` (full-text), `due_from`, `due_to`,
 `start_from`, `start_to`, `completed_on=YYYY-MM-DD`, `modified_since=RFC3339`, `parent_id`
-(`0` = top level only), `nest=1` (one level of subtasks inline), `limit` (default 500), `offset`.
+(`0` = top level only), `nest=1` (one level of subtasks inline), `limit` (default 500), `offset`,
+`url=<address>` (repeatable, up to 20; see below).
 Views sort: Today by overdue first then sort_order; Upcoming by date; Logbook by completed_at desc;
 lists by section then sort_order. `groups` is filled for upcoming (per day), anytime/someday (per
 list), logbook (per day or list), a list (per section).
 
 Everything in `/tasks` answers also for a saved filter: `GET /tasks?filter_id=ID`.
+
+**Tasks about a page** — `GET /tasks?url=<address>`: only the tasks whose `url` field or `notes` link to
+that address (how Pocket Contacts shows a person's to-dos: `?view=all&status=open&url=<contact page>`). The
+rule is Pocket Notes' mentions: compared as host (any case) + path + query, without scheme, fragment or
+trailing slash; a link to the same address, one below it (`/contacts/12/edit`) or with a query of its own
+(`/contacts/12?tab=notes`) counts, a sibling that merely starts the same (`/contacts/123` for `/contacts/12`)
+does not. Combines with every other filter; `total` counts the matches. Not an `http(s)` address → 400.
+Allowed for link tokens with `tasks:read`.
 
 ## Tags, filters, search, calendar, trash, activity
 
@@ -197,5 +206,7 @@ Outside `/api`: `GET /feed/{token}.ics` (public by token, read-only, `?done=0|1&
 
 ## Link scopes (Pocket Core)
 
-`tasks:read` → GET /tasks, /tasks/{id}, /lists, /tags, /calendar, /dashboard, /search.
-`tasks:write` → POST /tasks, /tasks/quick, PUT /tasks/{id}, POST /tasks/{id}/complete.
+`tasks:read` → GET /tasks (incl. `?url=`), /tasks/{id}, /tasks/{id}/ics, /lists, /lists/{id}/sections, /tags,
+/calendar, /dashboard, /search, /areas, /filters.
+`tasks:write` → POST /tasks, /tasks/quick, PUT /tasks/{id}, POST /tasks/{id}/complete. `POST /tasks` with
+`{title, due?, url, notes}` stores `url` as given and answers the Task (201).

@@ -341,6 +341,13 @@ func (s *Store) ListTasks(ctx context.Context, uid int64, q Query, inboxID int64
 			args = append(args, m)
 		}
 	}
+	if len(q.Links) > 0 {
+		ids, err := s.linkedIDs(ctx, "WHERE "+strings.Join(where, " AND "), args, q.Links)
+		if err != nil {
+			return nil, 0, err
+		}
+		where = append(where, "t.id IN ("+idList(ids)+")")
+	}
 	w := "WHERE " + strings.Join(where, " AND ")
 	var total int
 	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(1) FROM tasks t JOIN lists l ON l.id = t.list_id `+w, args...).Scan(&total); err != nil {

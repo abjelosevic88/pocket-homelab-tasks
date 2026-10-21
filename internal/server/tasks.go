@@ -512,6 +512,17 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 			q.CompletedOn = store.FormatTime(d) + "|" + store.FormatTime(d.AddDate(0, 0, 1))
 		}
 	}
+	if raws := qv["url"]; len(raws) > 0 {
+		for _, raw := range raws {
+			if k := store.ItemKey(raw); k != "" {
+				q.Links = append(q.Links, k)
+			}
+		}
+		if len(q.Links) == 0 || len(q.Links) > 20 {
+			writeErr(w, http.StatusBadRequest, "give one to 20 web addresses as url=")
+			return
+		}
+	}
 	q.Limit, q.Offset = queryInt(r, "limit"), queryInt(r, "offset")
 	tasks, groups, total, err := s.listTasks(ctx, uid, q, queryBool(r, "nest"))
 	if err != nil {
