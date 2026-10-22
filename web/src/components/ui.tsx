@@ -4,33 +4,64 @@ import { Icon } from './icons'
 
 // ---------- toasts (with an optional action, e.g. Undo) ----------
 
-type ToastItem = { id: number; msg: React.ReactNode; kind: 'ok' | 'err'; action?: { label: string; run: () => void } }
-type ToastFn = (msg: React.ReactNode, kind?: 'ok' | 'err', action?: { label: string; run: () => void }) => void
+type ToastAction = { label: string; run: () => void | Promise<void>; duration?: number }
+type ToastItem = { id: number; msg: React.ReactNode; kind: 'ok' | 'err'; action?: ToastAction }
+type ToastFn = (msg: React.ReactNode, kind?: 'ok' | 'err', action?: ToastAction) => void
 const ToastCtx = createContext<{ toast: ToastFn }>({ toast: () => {} })
 export function useToast() { return useContext(ToastCtx) }
+
+function Toast({ item: t, drop }: { item: ToastItem; drop: (id: number) => void }) {
+  const duration = t.action?.duration ?? (t.action ? 8000 : t.kind === 'err' ? 6000 : 3000)
+  const [remaining, setRemaining] = useState(duration)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const running = useRef(false)
+  const paused = hovered || focused || busy
+  useEffect(() => {
+    if (paused) return
+    let last = Date.now()
+    const timer = window.setInterval(() => {
+      const now = Date.now(), elapsed = now - last
+      last = now
+      setRemaining(r => Math.max(0, r - elapsed))
+    }, 100)
+    return () => window.clearInterval(timer)
+  }, [paused])
+  useEffect(() => { if (remaining <= 0 && !busy) drop(t.id) }, [remaining, busy, drop, t.id])
+  const run = async () => {
+    if (!t.action || running.current) return
+    running.current = true
+    setBusy(true)
+    try { await t.action.run(); drop(t.id) }
+    catch { setRemaining(duration); setBusy(false); running.current = false }
+  }
+  return <div className={`toast ${t.kind} ${t.action ? 'actionable' : ''}`}
+    onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    onFocusCapture={() => setFocused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}>
+    {t.kind === 'err' ? <Icon name="alert" size={15} /> : t.action && <Icon name="check" size={16} />}
+    <span className="grow" role="status">{t.msg}</span>
+    {t.action && <>
+      <button type="button" className="toast-action" disabled={busy} onClick={run}>{busy ? 'Undoing…' : t.action.label}</button>
+      <span className="toast-countdown" aria-hidden="true">{Math.ceil(remaining / 1000)}s</span>
+      <span className="toast-progress" aria-hidden="true" style={{ transform: `scaleX(${remaining / duration})` }} />
+    </>}
+    <button type="button" className="toast-x" disabled={busy} aria-label="Dismiss" onClick={() => drop(t.id)}><Icon name="x" size={14} /></button>
+  </div>
+}
+
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([])
-  const drop = (id: number) => setItems(t => t.filter(x => x.id !== id))
+  const drop = useCallback((id: number) => setItems(t => t.filter(x => x.id !== id)), [])
   const toast = useCallback<ToastFn>((msg, kind = 'ok', action) => {
     const id = Date.now() + Math.random()
-    setItems(t => [...t.slice(-2), { id, msg, kind, action }])
-    setTimeout(() => drop(id), action ? 8000 : kind === 'err' ? 6000 : 3000)
+    // Keep each Undo available when several tasks are completed quickly.
+    setItems(t => [...t, { id, msg, kind, action }])
   }, [])
-  return (
-    <ToastCtx.Provider value={{ toast }}>
-      {children}
-      <div className="toasts" role="status" aria-live="polite">
-        {items.map(t => (
-          <div key={t.id} className={`toast ${t.kind}`}>
-            {t.kind === 'err' && <Icon name="alert" size={15} />}
-            <span className="grow">{t.msg}</span>
-            {t.action && <button type="button" className="toast-action" onClick={() => { t.action!.run(); drop(t.id) }}>{t.action.label}</button>}
-            <button type="button" className="toast-x" aria-label="Dismiss" onClick={() => drop(t.id)}><Icon name="x" size={14} /></button>
-          </div>
-        ))}
-      </div>
-    </ToastCtx.Provider>
-  )
+  return <ToastCtx.Provider value={{ toast }}>
+    {children}
+    <div className="toasts">{items.map(t => <Toast key={t.id} item={t} drop={drop} />)}</div>
+  </ToastCtx.Provider>
 }
 
 // ---------- hooks ----------

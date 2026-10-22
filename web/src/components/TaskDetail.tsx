@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { api, upload, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import type { Activity, Task } from '../lib/types'
-import { emitTask } from '../lib/events'
+import { useTaskCompletion } from '../lib/use-task-completion'
+import { emitTask, onTask } from '../lib/events'
 import { hasTime, label, rruleLabel } from '../lib/dates'
 import { ago, bytes, stamp } from '../lib/format'
 import { Markdown, toggleCheckbox } from '../lib/markdown'
@@ -14,7 +15,8 @@ import { AlarmEditor, DateButton, Dropdown, EstimateInput, ListSelect, PriorityS
 type Save = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
 export function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
-  const { bump, lists } = useApp()
+  const { bump, lists, version } = useApp()
+  const { toggle, pending: completing } = useTaskCompletion()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [t, setT] = useState<Task | null>(null)
@@ -29,9 +31,11 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
   const pending = useRef<Record<string, unknown>>({})
   const timer = useRef<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-
   const load = useCallback(() => api.get<Task>(`${V1}/tasks/${id}`).then(x => { setT(x); setNotes(x.notes); setErr('') }).catch(e => setErr((e as Error).message)), [id])
   useEffect(() => { setT(null); setNotesEdit(false); setActivityOpen(false); pending.current = {}; load() }, [load])
+
+  useEffect(() => onTask(task => { if (task.id === id) setT(prev => prev ? { ...prev, ...task } : task) }), [id])
+  useEffect(() => { if (version > 0) load() }, [version, load])
 
   const flush = useCallback(async () => {
     const body = pending.current
@@ -51,7 +55,7 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
   useEffect(() => () => { if (timer.current) { window.clearTimeout(timer.current); flush() } }, [flush])
 
   const structural = async (fn: () => Promise<unknown>, msg?: string) => { try { await fn(); if (msg) toast(msg); await load(); bump() } catch (e) { toast((e as Error).message, 'err') } }
-  const complete = () => structural(async () => { const r = await api.post<{ task: Task; next?: Task }>(`${V1}/tasks/${id}/complete`, { done: !(t!.status === 'done' || t!.status === 'cancelled') }); if (r.next) toast(`Repeats: next on ${label(r.next.start || r.next.due)}`) })
+  const complete = () => t && toggle(t)
   const addSub = async (e: React.FormEvent) => { e.preventDefault(); if (!sub.trim() || !t) return; const title = sub.trim(); setSub(''); structural(() => api.post(`${V1}/tasks`, { title, parent_id: t.id, list_id: t.list_id, section_id: t.section_id })) }
   const files = async (fs: File[]) => { if (!fs.length) return; try { const x = await upload<Task>(`${V1}/tasks/${id}/attachments`, 'files', fs); setT(prev => prev ? { ...prev, attachments: x.attachments } : x); emitTask(x); toast(fs.length === 1 ? 'Attached' : `${fs.length} files attached`) } catch (e) { toast((e as Error).message, 'err') } }
 
@@ -65,9 +69,8 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
   return (
     <aside className="task-detail" onKeyDown={e => { if (e.key === 'Escape' && !(e.target as HTMLElement).closest('.menu, .modal')) { (e.target as HTMLElement).blur?.(); onClose() } }}>
       <div className="detail-head">
-        <button type="button" className={`check lg ${done ? 'on' : ''}`} onClick={complete} aria-label={done ? 'Reopen' : 'Complete'}><Icon name="check" size={13} stroke={3} /></button>
-        <input className="detail-title" value={t.title} onChange={e => patch({ title: e.target.value }, 600)} onBlur={() => { if (timer.current) { window.clearTimeout(timer.current); flush() } }} placeholder="Task title" />
-        <span className={`save-state ${save}`}>{save === 'saved' ? <><Icon name="check" size={12} strokeWidth={2.4} />Saved</> : save === 'saving' ? 'Saving…' : save === 'error' ? 'Not saved' : ''}</span>
+        <button type="button" disabled={completing.has(id)} className={`check lg ${done || completing.has(id) ? 'on' : ''}`} onClick={complete} aria-label={done ? 'Reopen' : 'Complete'}><Icon name="check" size={13} stroke={3} /></button>
+        <TaskTitle value={t.title} onChange={title => patch({ title }, 600)} onBlur={() => { if (timer.current) { window.clearTimeout(timer.current); flush() } }} />
         <button type="button" className="btn ghost icon-only" onClick={onClose} aria-label="Close" title="Close (esc)"><Icon name="x" size={18} /></button>
       </div>
       <div className="detail-body">
@@ -113,6 +116,7 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
         </div>
       </div>
       <div className="detail-foot">
+        <span className={`save-state ${save}`} role="status">{save === 'saved' ? <><Icon name="check" size={12} strokeWidth={2.4} />Saved</> : save === 'saving' ? 'Saving…' : save === 'error' ? 'Not saved' : ''}</span>
         <span className="muted small">Created {ago(t.created_at)} · edited {ago(t.updated_at)}{list ? ` · ${list.name}` : ''}</span>
         <span className="spacer" />
         <a className="btn ghost sm" href={`${V1}/tasks/${t.id}/ics`} target="_blank" rel="noreferrer" title="The raw iCalendar"><Icon name="code" size={14} />.ics</a>
@@ -124,13 +128,34 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
   )
 }
 
+function TaskTitle({ value, onChange, onBlur }: { value: string; onChange: (value: string) => void; onBlur: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  return (
+    <h2 className="detail-heading">
+      {editing ? <span className="detail-title-editor" data-title={value}>
+        <textarea autoFocus className="detail-title" rows={1} aria-label="Task title" value={value}
+          onChange={e => onChange(e.target.value.replace(/[\r\n]+/g, ' '))}
+          onKeyDown={e => {
+            if ((e.key === 'Enter' || e.key === 'Escape') && !e.nativeEvent.isComposing) {
+              e.preventDefault(); e.stopPropagation(); e.currentTarget.blur()
+              requestAnimationFrame(() => buttonRef.current?.focus())
+            }
+          }}
+          onBlur={() => { onBlur(); setEditing(false) }} placeholder="Task title" />
+      </span> : <button ref={buttonRef} type="button" className="detail-title" aria-label={`Edit task title: ${value}`} title="Click to edit title" onClick={() => setEditing(true)}>{value || 'Task title'}</button>}
+    </h2>
+  )
+}
+
 function SubtaskRow({ s, first, last, prev, next, onChange }: { s: Task; first: boolean; last: boolean; prev?: Task; next?: Task; onChange: (fn: () => Promise<unknown>) => Promise<void> }) {
+  const { toggle, pending } = useTaskCompletion()
   const [title, setTitle] = useState(s.title)
   useEffect(() => setTitle(s.title), [s.title])
   const done = s.status === 'done' || s.status === 'cancelled'
   return (
     <div className={`subtask ${done ? 'done' : ''}`}>
-      <button type="button" className={`check ${done ? 'on' : ''}`} onClick={() => onChange(() => api.post(`${V1}/tasks/${s.id}/complete`, { done: !done }))} aria-label={done ? 'Reopen' : 'Complete'}><Icon name="check" size={10} stroke={3.2} /></button>
+      <button type="button" disabled={pending.has(s.id)} className={`check ${done || pending.has(s.id) ? 'on' : ''}`} onClick={() => toggle(s)} aria-label={done ? 'Reopen' : 'Complete'}><Icon name="check" size={10} stroke={3.2} /></button>
       <input className="plain" value={title} onChange={e => setTitle(e.target.value)} onBlur={() => { if (title.trim() && title !== s.title) onChange(() => api.put(`${V1}/tasks/${s.id}`, { title: title.trim() })) }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} />
       <span className="subtask-tools">
         <button type="button" className="btn ghost icon-only xs" disabled={first} onClick={() => onChange(() => api.post(`${V1}/tasks/${s.id}/move`, { parent_id: s.parent_id, before_id: prev!.id }))} aria-label="Move up" title="Move up"><Icon name="chevron-up" size={14} /></button>

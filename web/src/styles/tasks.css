@@ -146,12 +146,28 @@ body.dragging { cursor: grabbing; user-select: none; }
 body.dragging * { cursor: grabbing !important; }
 
 /* ---------- task detail ---------- */
-.task-detail { width: var(--detail-w); flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.detail-head { display: flex; align-items: flex-start; gap: 10px; padding: 10px 10px 8px 16px; border-bottom: 1px solid var(--border); }
-.detail-title { flex: 1; min-width: 0; font-size: 17px; font-weight: 650; border: 0; height: auto; padding: 8px 0; background: transparent; letter-spacing: -.01em; }
-.detail-title:hover { border-color: transparent; }
-.detail-title:focus { box-shadow: none; border-bottom: 1px dashed var(--border-strong); border-radius: 0; }
-.save-state { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--muted); white-space: nowrap; padding-top: 11px; min-width: 52px; justify-content: flex-end; }
+.task-detail-panel { width: 0; flex-shrink: 0; min-height: 0; overflow: hidden; visibility: hidden; transition: width .28s cubic-bezier(.22, 1, .36, 1), visibility 0s .28s; }
+.task-detail-panel.is-open { width: var(--detail-w); visibility: visible; transition-delay: 0s; }
+.task-detail { width: var(--detail-w); border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; height: 100%; min-height: 0; transform: translateX(100%); transition: transform .28s cubic-bezier(.22, 1, .36, 1); }
+.task-detail-panel.is-open .task-detail { transform: translateX(0); }
+@starting-style {
+  .task-detail-panel.is-open { width: 0; }
+  .task-detail-panel.is-open .task-detail { transform: translateX(100%); }
+}
+.detail-head { flex-shrink: 0; display: flex; align-items: flex-start; gap: 10px; padding: 16px 12px 16px 16px; border-bottom: 1px solid var(--border); }
+.detail-heading { flex: 1; min-width: 0; margin: 0; font-family: var(--font); font-size: 18px; line-height: 1.4; font-weight: 650; letter-spacing: -.01em; }
+.detail-title, .detail-title-editor::after { display: block; width: 100%; min-width: 0; min-height: 0; margin: 0; padding: 5px 0; border: 0; border-radius: 4px; font: inherit; letter-spacing: inherit; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: transparent; }
+button.detail-title { cursor: text; height: auto; transition: background .12s; }
+button.detail-title:hover { background: var(--hover); }
+.detail-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* A matching text layer gives the editor its natural height, including after fonts load.
+   The title never becomes a separate scroll area. */
+.detail-title-editor { display: grid; }
+.detail-title-editor::after { content: attr(data-title) ' '; visibility: hidden; pointer-events: none; grid-area: 1 / 1; }
+textarea.detail-title { grid-area: 1 / 1; height: 100%; resize: none; overflow: hidden; scrollbar-width: none; box-shadow: 0 1px 0 var(--border-strong); }
+textarea.detail-title::-webkit-scrollbar { display: none; }
+.save-state { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.save-state:empty { display: none; }
 .save-state.saved { color: var(--success); } .save-state.error { color: var(--danger); }
 .detail-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: grid; gap: 18px; align-content: start; }
 .detail-section h4 { font-size: 11.5px; font-weight: 650; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; display: flex; gap: 6px; align-items: baseline; }
@@ -240,7 +256,9 @@ input.plain:hover { border-color: var(--border); }
 
 /* ---------- medium screens: the detail floats over the list ---------- */
 @media (max-width: 1100px) {
-  .task-detail { position: absolute; right: 0; top: 0; bottom: 0; z-index: 30; box-shadow: var(--shadow-lg); width: min(var(--detail-w), 92%); }
+  .task-detail-panel, .task-detail-panel.is-open { position: absolute; right: 0; top: 0; bottom: 0; z-index: 30; width: min(var(--detail-w), 92%); transition-property: visibility; }
+  .task-detail-panel.is-open { box-shadow: var(--shadow-lg); }
+  .task-detail { width: 100%; }
 }
 
 /* ---------- phones ---------- */
@@ -250,7 +268,8 @@ input.plain:hover { border-color: var(--border); }
   .view-title h1 { font-size: 23px; }
   .view-sub { margin-left: 0; }
   .task-row { padding: 10px 10px; }
-  .task-detail { position: fixed; inset: 0; width: 100%; z-index: 150; border-left: 0; box-shadow: none; }
+  .task-detail-panel, .task-detail-panel.is-open { position: fixed; inset: 0; width: 100%; z-index: 150; box-shadow: none; }
+  .task-detail { border-left: 0; }
   .detail-head { padding-top: max(10px, env(safe-area-inset-top)); }
   .save-state { min-width: 0; }
   .detail-foot { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
@@ -272,3 +291,16 @@ input.plain:hover { border-color: var(--border); }
 .prop .chips .chip { height: 26px; padding: 0 9px; }
 .prop .select-trigger.sm { max-width: 100%; }
 .search-page > * { max-width: var(--col); }
+
+/* Completion stays visible briefly before the list refreshes. */
+.task-title-text { background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-position: left 55%; background-size: 0 1px; }
+.task-row.completing { pointer-events: none; animation: task-complete-away .65s ease-in forwards; }
+.task-row.completing .task-title { text-decoration: none; }
+.task-row.completing .task-title-text { background-size: 100% 1px; transition: background-size .3s ease-out; animation: task-strike .3s ease-out; }
+.task-row.completing .check.on { background: var(--success); border-color: var(--success); animation: task-check-pop .4s ease-out; }
+@keyframes task-strike { from { background-size: 0 1px; } to { background-size: 100% 1px; } }
+@keyframes task-check-pop { 0% { transform: scale(.7); box-shadow: 0 0 0 0 transparent; } 45% { transform: scale(1.2); box-shadow: 0 0 0 7px color-mix(in srgb, var(--success) 14%, transparent); } 100% { transform: scale(1); box-shadow: 0 0 0 10px transparent; } }
+@keyframes task-complete-away { 0%, 65% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .task-row.completing, .task-row.completing .task-title-text, .task-row.completing .check.on, .check.on { animation: none; transition: none; }
+}

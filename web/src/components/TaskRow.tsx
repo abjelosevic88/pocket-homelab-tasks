@@ -11,11 +11,13 @@ export function DueChip({ task }: { task: Task }) {
   return <span className={`meta-chip due ${cls}`} title={`Deadline ${task.due}`}><Icon name="flag" size={12} />{label(task.due)}</span>
 }
 
-export function TaskRow({ task, selected, focused, showList, onToggle, onOpen, onSelect, onPointerDown, dragging, depth = 0, showDone }: {
-  task: Task; selected?: boolean; focused?: boolean; showList?: boolean; depth?: number; dragging?: boolean; showDone?: boolean
+export function TaskRow({ task, selected, focused, showList, onToggle, onOpen, onSelect, onPointerDown, dragging, depth = 0, showDone, pending }: {
+  task: Task; selected?: boolean; focused?: boolean; showList?: boolean; depth?: number; dragging?: boolean; showDone?: boolean; pending?: boolean
   onToggle: (t: Task) => void; onOpen: (t: Task) => void; onSelect?: (t: Task, e: React.MouseEvent) => void; onPointerDown?: (t: Task, e: React.PointerEvent) => void
 }) {
   const done = task.status === 'done' || task.status === 'cancelled'
+  const completing = pending && !done
+  const checked = done || completing
   const pr = priorityLevel(task.priority)
   const startDiffers = task.start && (!task.due || dayOf(task.start) !== dayOf(task.due) || fmtTime(task.start) !== fmtTime(task.due))
   const startChip = task.start && (startDiffers || !task.due)
@@ -36,17 +38,17 @@ export function TaskRow({ task, selected, focused, showList, onToggle, onOpen, o
 
   return (
     <div
-      className={`task-row ${done ? 'done' : ''} ${selected ? 'selected' : ''} ${focused ? 'focused' : ''} ${task.overdue ? 'overdue' : ''} ${dragging ? 'dragging' : ''}`}
+      className={`task-row ${checked ? 'done' : ''} ${completing ? 'completing' : ''} ${selected ? 'selected' : ''} ${focused ? 'focused' : ''} ${task.overdue ? 'overdue' : ''} ${dragging ? 'dragging' : ''}`}
       data-task-id={task.id}
       style={depth ? { paddingLeft: 12 + depth * 30 } : undefined}
       onClick={e => { if (onSelect && (e.shiftKey || e.metaKey || e.ctrlKey)) { e.preventDefault(); onSelect(task, e) } else onOpen(task) }}
       onPointerDown={e => onPointerDown?.(task, e)}
     >
-      <button type="button" className={`check ${done ? 'on' : ''} ${pr}`} onClick={e => { e.stopPropagation(); onToggle(task) }} onPointerDown={e => e.stopPropagation()} aria-label={done ? 'Reopen' : 'Complete'}>
+      <button type="button" disabled={pending} className={`check ${checked ? 'on' : ''} ${pr}`} onClick={e => { e.stopPropagation(); onToggle(task) }} onPointerDown={e => e.stopPropagation()} aria-label={done ? 'Reopen' : 'Complete'}>
         <Icon name="check" size={11} stroke={3.2} />
       </button>
       <div className="task-main">
-        <span className="task-title">{task.title || <span className="muted">Untitled</span>}{hints.length > 0 && <span className="title-icons">{hints}</span>}</span>
+        <span className="task-title"><span className="task-title-text">{task.title || <span className="muted">Untitled</span>}</span>{hints.length > 0 && <span className="title-icons">{hints}</span>}</span>
         {meta.length > 0 && <span className="task-meta">{meta}</span>}
       </div>
       {pr !== 'none' && !done && <span className={`prio-flag ${pr}`} title={`${pr[0].toUpperCase() + pr.slice(1)} priority`}><Icon name="flag" size={13} fill /></span>}

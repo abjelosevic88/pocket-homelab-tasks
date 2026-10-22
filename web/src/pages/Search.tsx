@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api, qs, V1 } from '../lib/api'
 import type { Task } from '../lib/types'
-import { label } from '../lib/dates'
 import { snippetParts } from '../lib/format'
-import { Empty, Loading, PageHeader, useDebounce, useToast } from '../components/ui'
+import { Empty, Loading, PageHeader, useDebounce } from '../components/ui'
+import { useTaskCompletion } from '../lib/use-task-completion'
 import { TaskRow } from '../components/TaskRow'
 import { useApp } from '../lib/app-context'
 import { Icon } from '../components/icons'
@@ -16,8 +16,8 @@ export default function Search() {
   const dq = useDebounce(text, 250)
   const [hits, setHits] = useState<Task[] | null>(null)
   const [busy, setBusy] = useState(false)
-  const { bump, version } = useApp()
-  const { toast } = useToast()
+  const { version } = useApp()
+  const { toggle, pending } = useTaskCompletion()
   useEffect(() => { if (dq !== q) setParams(p => { const n = new URLSearchParams(p); if (dq.trim()) n.set('q', dq.trim()); else n.delete('q'); return n }, { replace: true }) }, [dq]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!q.trim()) { setHits(null); return }
@@ -27,10 +27,6 @@ export default function Search() {
     return () => { live = false }
   }, [q, version])
   const open = (t: Task) => setParams(p => { const n = new URLSearchParams(p); n.set('task', String(t.id)); return n })
-  const toggle = async (t: Task) => {
-    const done = t.status === 'done' || t.status === 'cancelled'
-    try { const r = await api.post<{ task: Task; next?: Task }>(`${V1}/tasks/${t.id}/complete`, { done: !done }); if (r.next) toast(`Repeats: next on ${label(r.next.start || r.next.due)}`); bump() } catch (e) { toast((e as Error).message, 'err') }
-  }
   return (
     <div className="page search-page">
       <PageHeader title="Search" sub="Titles, notes and tags; word beginnings match, accents do not matter." />
@@ -40,7 +36,7 @@ export default function Search() {
       {!q.trim() && !hits && <Empty icon="search" title="Search every task">Words in titles, notes and tags. ⌘K searches from anywhere.</Empty>}
       {hits && hits.length > 0 && <div className="task-list">
         {hits.map(h => <div key={h.id} className="task-slot">
-          <TaskRow task={h} showList onToggle={toggle} onOpen={open} />
+          <TaskRow task={h} pending={pending.has(h.id)} showList onToggle={toggle} onOpen={open} />
           {h.snippet && <div className="snippet muted small">{snippetParts(h.snippet).map((p, i) => p.hit ? <mark key={i}>{p.text}</mark> : <span key={i}>{p.text}</span>)}</div>}
         </div>)}
       </div>}

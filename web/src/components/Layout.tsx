@@ -85,7 +85,7 @@ export default function Layout() {
         <TopBar onMenu={toggleSidebar} onPalette={() => setPalette(true)} onNewTask={() => setNewTask(true)} mobile={mobile} compact={narrow} sidebarOpen={sidebarOpen} />
         <div className="content-row">
           <main className="content"><ErrorBoundary key={section(loc.pathname)} where={loc.pathname}><Outlet /></ErrorBoundary></main>
-          {detail && <ErrorBoundary key={'t' + openTask} where="detail"><TaskDetail id={openTask!} onClose={closeDetail} /></ErrorBoundary>}
+          <TaskDetailPanel id={detail ? openTask : null} onClose={closeDetail} />
         </div>
       </div>
       {mobile && !detail && <button type="button" className="fab" aria-label="New task" title="New task" onClick={() => setNewTask(true)}><Icon name="plus" size={26} strokeWidth={2.2} /></button>}
@@ -94,6 +94,22 @@ export default function Layout() {
       {newTask && <Modal title="New task" onClose={() => setNewTask(false)} className="new-task-modal">
         <QuickAdd autoFocus defaults={{ list_id: listId, start: loc.pathname === '/today' ? today() : null, someday: loc.pathname === '/someday' || undefined }} onAdded={() => setNewTask(false)} onCancel={() => setNewTask(false)} />
       </Modal>}
+    </div>
+  )
+}
+
+function TaskDetailPanel({ id, onClose }: { id: number | null; onClose: () => void }) {
+  const [lastId, setLastId] = useState(id)
+  // Keep the contents mounted until the closing transition finishes.
+  useEffect(() => {
+    if (id !== null) { setLastId(id); return }
+    const timer = window.setTimeout(() => setLastId(null), 300)
+    return () => window.clearTimeout(timer)
+  }, [id])
+  const shownId = id ?? lastId
+  return (
+    <div className={`task-detail-panel ${id !== null ? 'is-open' : ''}`} inert={id === null} aria-hidden={id === null}>
+      {shownId !== null && <ErrorBoundary key={'t' + shownId} where="detail"><TaskDetail id={shownId} onClose={onClose} /></ErrorBoundary>}
     </div>
   )
 }

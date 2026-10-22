@@ -8,6 +8,7 @@ import { dayHeading, label, today } from '../lib/dates'
 import { plural } from '../lib/format'
 import { Confirm, Empty, Loading, type MenuItem, MenuButton, Modal, Prompt, modalOpen, useToast } from './ui'
 import { TaskRow } from './TaskRow'
+import { useTaskCompletion } from '../lib/use-task-completion'
 import { QuickAdd, type QuickDefaults } from './QuickAdd'
 import { DatePanel, TagInput } from './pickers'
 import { Icon, ListRing, ViewIcon } from './icons'
@@ -43,6 +44,7 @@ const isDay = (k: string) => /^\d{4}-\d{2}-\d{2}$/.test(k)
 export function TaskPage(p: TaskPageProps) {
   const { version, bump, settings, lists, areas } = useApp()
   const { toast } = useToast()
+  const { toggle, pending: completing } = useTaskCompletion()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [data, setData] = useState<TaskList | null>(null)
@@ -129,16 +131,6 @@ export function TaskPage(p: TaskPageProps) {
 
   const open = (t: Task) => { setFocus(t.id); setParams(prev => { const n = new URLSearchParams(prev); n.set('task', String(t.id)); return n }) }
   const closeDetail = () => setParams(prev => { const n = new URLSearchParams(prev); n.delete('task'); return n })
-
-  const toggle = async (t: Task) => {
-    const done = t.status === 'done' || t.status === 'cancelled'
-    setData(d => d ? { ...d, tasks: d.tasks.map(x => x.id === t.id ? { ...x, status: done ? 'open' : 'done' } : x.subtasks ? { ...x, subtasks: x.subtasks.map(s => s.id === t.id ? { ...s, status: done ? 'open' : 'done' } : s) } : x) } : d)
-    try {
-      const r = await api.post<{ task: Task; next?: Task }>(`${V1}/tasks/${t.id}/complete`, { done: !done })
-      if (r.next) toast(`Repeats: next on ${label(r.next.start || r.next.due)}`)
-      setTimeout(bump, 700)
-    } catch (e) { toast((e as Error).message, 'err'); load() }
-  }
 
   const select = (t: Task, e: React.MouseEvent) => {
     setSel(s => {
@@ -245,7 +237,7 @@ export function TaskPage(p: TaskPageProps) {
   const row = (t: Task, depth = 0, showDone = false) => (
     <React.Fragment key={t.id}>
       <div className={`task-slot ${over?.kind === 'row' && over.id === t.id ? `over-${over.pos}` : ''}`}>
-        <TaskRow task={t} depth={depth} showList={p.showList} selected={sel.has(t.id)} focused={focus === t.id || openId === t.id} dragging={drag?.id === t.id} showDone={showDone || p.doneTime} onToggle={toggle} onOpen={open} onSelect={select} onPointerDown={onPointerDown} />
+        <TaskRow task={t} pending={completing.has(t.id)} depth={depth} showList={p.showList} selected={sel.has(t.id)} focused={focus === t.id || openId === t.id} dragging={drag?.id === t.id} showDone={showDone || p.doneTime} onToggle={toggle} onOpen={open} onSelect={select} onPointerDown={onPointerDown} />
       </div>
       {t.subtasks?.filter(s => s.status !== 'done' || showDone || settings?.show_done_in_lists).map(s => row(s, depth + 1, showDone))}
     </React.Fragment>

@@ -381,3 +381,11 @@ input.bare, textarea.bare { border-color: transparent; background: transparent; 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.toast.actionable { position: relative; overflow: hidden; padding-bottom: 9px; }
+.toast .grow { overflow-wrap: anywhere; min-width: 0; }
+.toast-action, .toast-countdown { flex-shrink: 0; }
+.toast-countdown { font-size: 12px; color: #c4c4ce; font-variant-numeric: tabular-nums; min-width: 20px; text-align: right; }
+.toast-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: #9dbbff; transform-origin: left; transition: transform .1s linear; }
+.toast-action:focus-visible, .toast-x:focus-visible { outline: 2px solid #9dbbff; outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } .toast-progress { transition: none; } }
