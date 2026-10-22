@@ -152,9 +152,9 @@ function TopBar({ onMenu, onPalette, onNewTask, mobile, compact, sidebarOpen }: 
         {crumbs.map((c, i) => <span key={i} className="crumb-part">{i > 0 && <Icon name="chevron-right" size={16} className="crumb-sep" />}<span className={`ellipsis ${c.muted ? 'crumb' : ''}`}>{c.label}</span></span>)}
       </h1>
       <span className="spacer" />
-      <button type="button" className="btn ghost icon-only" onClick={onPalette} aria-label="Search" title="Search (⌘K)"><Icon name="search" size={18} /></button>
       {!mobile && (!sidebarOpen || compact) && <button type="button" className="btn ghost icon-only" onClick={onNewTask} aria-label="New task" title="New task (⌘⇧N)"><Icon name="plus" size={19} /></button>}
-      {mobile && <AskButton />}
+      <button type="button" className="btn ghost icon-only" onClick={onPalette} aria-label="Search" title="Search (⌘K)"><Icon name="search" size={18} /></button>
+      <AskButton />
       <MenuButton label="Account" className="avatar-btn" align="right" width={220} items={avatarMenu}>
         <Avatar name={user?.name} email={user?.email} size={30} color={user ? colorFor(user.id) : undefined} />
       </MenuButton>
