@@ -1,6 +1,13 @@
 <p align="center"><img src="web/public/favicon.svg" width="72" alt=""></p>
 <h1 align="center">Pocket Tasks</h1>
 <p align="center">Self-hosted tasks with a real CalDAV server, every dated task on any calendar, and the Nextcloud Tasks you already have imported or kept in sync.<br>One Go binary, one SQLite file, one volume.</p>
+<p align="center">
+  <a href="https://github.com/abjelosevic88/pocket-homelab-tasks/actions"><img src="https://github.com/abjelosevic88/pocket-homelab-tasks/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/abjelosevic88/pocket-homelab-tasks/pkgs/container/pocket-homelab-tasks"><img src="https://img.shields.io/badge/ghcr.io-amd64%20%7C%20arm64-blue" alt="image"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
+</p>
+
+---
 
 Pocket Tasks is what Nextcloud Tasks would be if it were an app of its own: the same open standard
 underneath (every task a VTODO, every list a CalDAV collection, so Apple Reminders, BusyCal,
