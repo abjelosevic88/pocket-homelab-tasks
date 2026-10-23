@@ -484,7 +484,7 @@ func (s *Server) ncStatusView(ctx context.Context, uid int64, st store.Settings)
 	s.syncMu.Unlock()
 	out := map[string]any{
 		"mode": st.NCMode, "via": st.NCVia, "url": st.NCURL, "user": st.NCUser, "password_set": st.NCPassword != "",
-		"core_available": s.core.Configured(), "interval_min": st.NCIntervalMin, "status": cp,
+		"core_available": s.core.Configured(), "core_registered": s.coreStatus()["registered"], "interval_min": st.NCIntervalMin, "status": cp,
 		"imported_at": s.store.UserSetting(ctx, uid, "nc.imported_at"),
 	}
 	if s.core.Configured() {

@@ -76,7 +76,7 @@ export interface SystemInfo { version: string; go: string; db_size: number; data
 export interface CalendarDays { days: Record<string, { start: Task[]; due: Task[]; done: Task[] }> }
 
 export interface NcSyncStatus { running: boolean; last_run: string | null; last_error: string; lists: { name: string; href: string; tasks: number; mapped_list_id: number | null }[]; pulled: number; pushed: number }
-export interface NcSync { mode: 'off' | 'import' | 'two_way'; via: 'core' | 'direct'; url: string; user: string; password_set: boolean; core_available: boolean; core_error?: string; status: NcSyncStatus; interval_min: number }
+export interface NcSync { mode: 'off' | 'import' | 'two_way'; via: 'core' | 'direct'; url: string; user: string; password_set: boolean; core_available: boolean; core_registered?: boolean; core_error?: string; status: NcSyncStatus; interval_min: number }
 export interface NcTest { ok: boolean; calendars: { name: string; href: string; tasks: number }[] }
 
 export interface Feeds { ics_url: string; webcal_url: string; caldav_url: string; caldav_nextcloud_url: string; username: string; apps: { name: string; how: string }[] }

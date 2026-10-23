@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api, upload, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import type { APIToken, Area, Feeds, List, NcSync, NcTest, Settings as SettingsT, SystemInfo, User } from '../lib/types'
-import { Confirm, CopyField, Field, Loading, Modal, Segmented, SettingRow, Switch, Tabs, copyText, useAsync, useIsMobile, useToast } from '../components/ui'
+import { Confirm, CoreHint, CopyField, Field, Loading, Modal, Segmented, SettingRow, Switch, Tabs, copyText, useAsync, useIsMobile, useToast } from '../components/ui'
 import { Avatar } from '../components/people'
 import { ColorPicker, ListSelect } from '../components/pickers'
 import { Select } from '../components/Select'
@@ -303,7 +303,10 @@ function Nextcloud() {
   const [f, setF] = useState({ mode: 'off' as NcSync['mode'], via: 'direct' as NcSync['via'], url: '', user: '', password: '', interval_min: 2 })
   const [test, setTest] = useState<NcTest | null>(null)
   const [busy, setBusy] = useState(false)
-  useEffect(() => { if (data) setF({ mode: data.mode, via: data.core_available ? data.via : 'direct', url: data.url, user: data.user, password: '', interval_min: data.interval_min || 2 }) }, [data])
+  // Pocket Core needs a Core this box is registered with; without one it stays
+  // visible but greyed out and Direct is what is in effect
+  const coreOn = !!(data?.core_available && data.core_registered !== false)
+  useEffect(() => { if (data) setF({ mode: data.mode, via: coreOn ? data.via : 'direct', url: data.url, user: data.user, password: '', interval_min: data.interval_min || 2 }) }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!data) return <Loading />
   const st = data.status
   const save = async () => {
@@ -325,8 +328,8 @@ function Nextcloud() {
         actions={data.mode !== 'off' && <button type="button" className="btn sm" onClick={runNow} disabled={busy || st.running}><Icon name="sync" size={14} className={st.running ? 'spin' : ''} />{st.running ? 'Running…' : 'Run now'}</button>}>
         <SettingRow title="Mode"><Segmented size="sm" value={f.mode} onChange={v => setF({ ...f, mode: v })} options={[{ value: 'off', label: 'Off' }, { value: 'import', label: 'Import once' }, { value: 'two_way', label: 'Two-way' }]} /></SettingRow>
         {f.mode !== 'off' && <>
-          <SettingRow title="Account" help={f.via === 'core' ? <>Pocket Core’s Nextcloud service connects you with your own account there. Nothing to type.{data.core_error && <span className="danger-text"> {data.core_error}</span>}</> : undefined}>
-            <Segmented size="sm" value={f.via} onChange={v => setF({ ...f, via: v })} options={[...(data.core_available ? [{ value: 'core' as const, label: 'Pocket Core' }] : []), { value: 'direct' as const, label: 'Direct' }]} />
+          <SettingRow title="Account" help={!coreOn ? <CoreHint /> : f.via === 'core' ? <>Pocket Core’s Nextcloud service connects you with your own account there. Nothing to type.{data.core_error && <span className="danger-text"> {data.core_error}</span>}</> : undefined}>
+            <Segmented size="sm" value={f.via} onChange={v => setF({ ...f, via: v })} options={[{ value: 'core' as const, label: 'Pocket Core', disabled: !coreOn }, { value: 'direct' as const, label: 'Direct' }]} />
           </SettingRow>
           {f.via === 'direct' && <SettingRow title="Nextcloud account" stack>
             <div className="stack tight">
