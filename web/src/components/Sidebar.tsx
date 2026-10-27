@@ -58,7 +58,7 @@ export function Sidebar({ onNewTask, onNavigate }: { onNewTask: () => void; onNa
       <div className="sb-brand">
         <img src="/favicon.svg" alt="" className="sb-logo" />
         <span className="sb-title">{title !== 'Pocket Tasks' ? title : <>Pocket <b>Tasks</b></>}</span>
-        {status?.version && <span className="sb-version" title={`Version ${status.version}`}>{/^\d/.test(status.version) ? 'v' + status.version : status.version}</span>}
+        {status?.version && <span className="sb-version" title={`Version ${status.version}`}>{/^v?\d+\.\d+/.test(status.version) ? 'v' + status.version.replace(/^v/, '').replace(/[-+].*$/, '') : status.version}</span>}
       </div>
       <button type="button" className="btn primary create-btn" onClick={onNewTask} title="New task (⌘⇧N)">
         <Icon name="plus" size={17} strokeWidth={2.2} />New task<kbd className="kbd-on-primary">⌘⇧N</kbd>
