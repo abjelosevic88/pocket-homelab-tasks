@@ -95,21 +95,21 @@ func (s *Store) Reorder(ctx context.Context, table string, uid int64, ids []int6
 
 // ---- lists ----
 
-const listCols = `l.id, l.user_id, l.uid, l.name, l.color, l.description, l.sort_order, l.area_id, l.is_inbox, l.archived, l.seq, l.nc_href, l.nc_token, l.nc_ctag, l.created_at, l.updated_at,
+const listCols = `l.id, l.user_id, l.uid, l.name, l.color, l.description, l.sort_order, l.area_id, l.is_inbox, l.archived, l.keep_adding, l.seq, l.nc_href, l.nc_token, l.nc_ctag, l.created_at, l.updated_at,
 	(SELECT COUNT(1) FROM tasks t WHERE t.list_id = l.id AND t.deleted_at = '' AND t.status IN ('open','in_progress'))`
 
 func scanList(row interface{ Scan(...any) error }) (*List, error) {
 	var l List
 	var area sql.NullInt64
-	var inbox, archived int
-	if err := row.Scan(&l.ID, &l.UserID, &l.UID, &l.Name, &l.Color, &l.Description, &l.SortOrder, &area, &inbox, &archived, &l.Seq, &l.NCHref, &l.NCToken, &l.NCCtag, &l.CreatedAt, &l.UpdatedAt, &l.OpenCount); err != nil {
+	var inbox, archived, keep int
+	if err := row.Scan(&l.ID, &l.UserID, &l.UID, &l.Name, &l.Color, &l.Description, &l.SortOrder, &area, &inbox, &archived, &keep, &l.Seq, &l.NCHref, &l.NCToken, &l.NCCtag, &l.CreatedAt, &l.UpdatedAt, &l.OpenCount); err != nil {
 		return nil, notFound(err)
 	}
 	if area.Valid {
 		v := area.Int64
 		l.AreaID = &v
 	}
-	l.IsInbox, l.Archived = inbox == 1, archived == 1
+	l.IsInbox, l.Archived, l.KeepAdding = inbox == 1, archived == 1, keep == 1
 	return &l, nil
 }
 
@@ -180,8 +180,8 @@ func (s *Store) CreateList(ctx context.Context, l *List) error {
 // UpdateList saves the editable columns and bumps the list's change number.
 func (s *Store) UpdateList(ctx context.Context, l *List) error {
 	l.Seq = s.NextSeq(ctx)
-	_, err := s.DB.ExecContext(ctx, `UPDATE lists SET name = ?, color = ?, description = ?, area_id = ?, archived = ?, seq = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
-		l.Name, l.Color, l.Description, nullInt(l.AreaID), boolInt(l.Archived), l.Seq, Now(), l.ID, l.UserID)
+	_, err := s.DB.ExecContext(ctx, `UPDATE lists SET name = ?, color = ?, description = ?, area_id = ?, archived = ?, keep_adding = ?, seq = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+		l.Name, l.Color, l.Description, nullInt(l.AreaID), boolInt(l.Archived), boolInt(l.KeepAdding), l.Seq, Now(), l.ID, l.UserID)
 	return err
 }
 

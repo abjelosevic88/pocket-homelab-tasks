@@ -234,3 +234,31 @@ func TestQuickAndRepeat(t *testing.T) {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+func TestListKeepAdding(t *testing.T) {
+	s, h := testServer(t)
+	me := newPerson(t, s, h, "me@example.com")
+	w, l := me.do("POST", "/api/v1/lists", map[string]any{"name": "Kupovina"})
+	if w.Code != 201 {
+		t.Fatalf("create list: %d %s", w.Code, w.Body.String())
+	}
+	if l["keep_adding"] != false {
+		t.Fatalf("new list keep_adding = %v, want false", l["keep_adding"])
+	}
+	id := itoa(int(l["id"].(float64)))
+	if w, l = me.do("PUT", "/api/v1/lists/"+id, map[string]any{"keep_adding": true}); w.Code != 200 || l["keep_adding"] != true {
+		t.Fatalf("set keep_adding: %d %s", w.Code, w.Body.String())
+	}
+	w, _ = me.do("GET", "/api/v1/lists", nil)
+	var lists []map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &lists)
+	for _, x := range lists {
+		if x["name"] == "Kupovina" && x["keep_adding"] != true {
+			t.Fatalf("keep_adding not kept: %v", x)
+		}
+	}
+	// other fields don't reset it
+	if w, l = me.do("PUT", "/api/v1/lists/"+id, map[string]any{"name": "Shopping"}); w.Code != 200 || l["keep_adding"] != true {
+		t.Fatalf("rename dropped keep_adding: %d %s", w.Code, w.Body.String())
+	}
+}

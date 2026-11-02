@@ -136,6 +136,9 @@ func (s *Server) handleUpdateList(w http.ResponseWriter, r *http.Request) {
 	if v, ok := raw["archived"].(bool); ok && !l.IsInbox {
 		l.Archived = v
 	}
+	if v, ok := raw["keep_adding"].(bool); ok {
+		l.KeepAdding = v
+	}
 	if err := s.store.UpdateList(ctx, l); err != nil {
 		s.fail(w, err, "update list")
 		return

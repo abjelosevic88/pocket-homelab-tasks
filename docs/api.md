@@ -49,7 +49,7 @@ interface Task {
   overdue: boolean                                   // computed: open and (due < today or timed due < now)
   etag: string; created_at: string; updated_at: string
 }
-interface List  { id: number; uid: string; name: string; color: string; description: string; sort_order: number; area_id: number|null; is_inbox: boolean; archived: boolean; open_count: number; nc_href?: string; created_at: string }
+interface List  { id: number; uid: string; name: string; color: string; description: string; sort_order: number; area_id: number|null; is_inbox: boolean; archived: boolean; keep_adding: boolean /* quick add stays open after adding here */; open_count: number; nc_href?: string; created_at: string }
 interface Area  { id: number; name: string; color: string; sort_order: number }
 interface Section { id: number; list_id: number; name: string; sort_order: number }
 interface Filter { id: number; name: string; icon: string; sort_order: number; query: TaskQuery }

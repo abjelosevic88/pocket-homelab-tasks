@@ -48,13 +48,15 @@ type List struct {
 	AreaID      *int64  `json:"area_id"`
 	IsInbox     bool    `json:"is_inbox"`
 	Archived    bool    `json:"archived"`
-	OpenCount   int     `json:"open_count"`
-	Seq         int64   `json:"-"`
-	NCHref      string  `json:"nc_href,omitempty"`
-	NCToken     string  `json:"-"`
-	NCCtag      string  `json:"-"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	// KeepAdding: quick add stays open after adding here, for the next one (a shopping list).
+	KeepAdding bool   `json:"keep_adding"`
+	OpenCount  int    `json:"open_count"`
+	Seq        int64  `json:"-"`
+	NCHref     string `json:"nc_href,omitempty"`
+	NCToken    string `json:"-"`
+	NCCtag     string `json:"-"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 // Section is a heading inside a list.
