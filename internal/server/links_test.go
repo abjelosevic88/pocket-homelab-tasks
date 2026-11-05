@@ -129,7 +129,8 @@ func fakeCore(t *testing.T) *httptest.Server {
 }
 
 func TestLinkTokenTasksByURL(t *testing.T) {
-	t.Setenv("CORE_URL", fakeCore(t).URL)
+	fakeCoreURL = fakeCore(t).URL
+	t.Cleanup(func() { fakeCoreURL = "" })
 	s, h := testServer(t)
 	alice := newPerson(t, s, h, "alice@example.com")
 	bob := newPerson(t, s, h, "bob@example.com")

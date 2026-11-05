@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,12 +17,26 @@ import (
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/store"
 )
 
+// fakeCoreURL is a test's httptest Core; testServer points CORE_URL at it.
+var fakeCoreURL string
+
 func testServer(t *testing.T) (*Server, http.Handler) {
 	t.Helper()
 	dir := t.TempDir()
-	os.Setenv("DATA_DIR", dir)
-	os.Setenv("AUTH_MODE", "local")
-	os.Setenv("TZ", "Europe/Sarajevo")
+	// Shells on the box carry Pocket AI's settings: without blanking them the
+	// test server registers with the live Core under the real slug (and AI's
+	// address) and sends real notifications.
+	for _, k := range []string{"CORE_URL", "CORE_APP_URL", "CORE_REGISTRATION_KEY", "BASE_URL", "HOST", "PORT",
+		"ADMIN_EMAIL", "ADMIN_NAME", "ADMIN_PASSWORD", "NOTIFY_URL", "NOTIFY_KIND", "NEXTCLOUD_URL", "NEXTCLOUD_USER",
+		"NEXTCLOUD_PASSWORD", "OIDC_ISSUER", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "DB_PATH", "DEMO_DATA"} {
+		t.Setenv(k, "")
+	}
+	if fakeCoreURL != "" {
+		t.Setenv("CORE_URL", fakeCoreURL)
+	}
+	t.Setenv("DATA_DIR", dir)
+	t.Setenv("AUTH_MODE", "local")
+	t.Setenv("TZ", "Europe/Sarajevo")
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
