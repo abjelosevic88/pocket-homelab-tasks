@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/config"
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/store"
@@ -166,7 +167,9 @@ func TestCalDAVIsolationAndBasics(t *testing.T) {
 	if w.Code != 207 || !strings.Contains(w.Body.String(), "/inbox/") {
 		t.Fatalf("home: %d %s", w.Code, w.Body.String())
 	}
-	ics := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:abc-1\r\nSUMMARY:Over DAV\r\nDUE;VALUE=DATE:20261101\r\nSTATUS:NEEDS-ACTION\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+	// due in a week, so it stays in "upcoming" whenever the test runs
+	due := time.Now().AddDate(0, 0, 7).Format("20060102")
+	ics := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:abc-1\r\nSUMMARY:Over DAV\r\nDUE;VALUE=DATE:" + due + "\r\nSTATUS:NEEDS-ACTION\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
 	w, _ = alice.do("PUT", "/dav/calendars/alice/inbox/abc-1.ics", ics, "Content-Type", "text/calendar", "If-None-Match", "*")
 	if w.Code != 201 || w.Header().Get("ETag") == "" {
 		t.Fatalf("put: %d %s", w.Code, w.Body.String())
