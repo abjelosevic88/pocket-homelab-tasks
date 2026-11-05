@@ -91,7 +91,7 @@ export function QuickAdd({ defaults = {}, placeholder = 'Add a task', onAdded, a
     const pStart = p?.start && !removed.has('start') ? p.start : defaults.start ?? null
     const pDue = p?.due && !removed.has('due') ? p.due : defaults.due ?? null
     // Same rule as the server: a new top-level task with no date starts today.
-    const start = pStart ?? (pDue || defaults.someday || defaults.parent_id ? null : today())
+    const start = pStart ?? (pDue || defaults.someday || defaults.parent_id || settings?.default_start === 'none' ? null : today())
     setX({ notes: x.notes, list_id: (p?.list_id && !removed.has('list') ? p.list_id : null) ?? listId ?? settings?.default_list_id ?? null, section_id: defaults.section_id ?? null, start, due: pDue, repeat: p?.repeat && !removed.has('repeat') ? p.repeat : null, priority: p?.priority && !removed.has('priority') ? p.priority : 0, tags: p?.tags && !removed.has('tags') ? p.tags : [], alarms: p?.alarm && !removed.has('alarm') ? [{ trigger: p.alarm }] : [] })
     setExpanded(true)
   }

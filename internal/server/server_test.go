@@ -286,7 +286,11 @@ func TestNewTasksStartToday(t *testing.T) {
 	_, c := me.do("POST", "/api/v1/tasks", map[string]any{"title": "deadline", "due": "2030-01-01"})
 	_, d := me.do("POST", "/api/v1/tasks", map[string]any{"title": "later", "someday": true})
 	_, e := me.do("POST", "/api/v1/tasks", map[string]any{"title": "sub", "parent_id": a["id"]})
-	for _, x := range []map[string]any{b, c, d, e} {
+	if w, st := me.do("PUT", "/api/v1/settings", map[string]any{"default_start": "none"}); w.Code != 200 || st["default_start"] != "none" {
+		t.Fatalf("set default_start: %d %s", w.Code, w.Body.String())
+	}
+	_, f := me.do("POST", "/api/v1/tasks", map[string]any{"title": "no default"})
+	for _, x := range []map[string]any{b, c, d, e, f} {
 		if start(x) != nil {
 			t.Errorf("%v: start = %v, want none", x["title"], start(x))
 		}

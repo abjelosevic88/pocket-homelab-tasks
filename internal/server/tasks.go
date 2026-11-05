@@ -794,10 +794,14 @@ func (s *Server) newTask(ctx context.Context, uid int64, raw map[string]json.Raw
 
 func hasKey(m map[string]json.RawMessage, k string) bool { _, ok := m[k]; return ok }
 
-// startToday makes a new top-level task with no date land in Today: an
-// explicit "start": null, a deadline, Someday or a parent keep it undated.
+// startToday makes a new top-level task with no date land in Today (setting
+// default_start, on unless "none"): an explicit "start": null, a deadline,
+// Someday or a parent keep it undated.
 func (s *Server) startToday(ctx context.Context, t *store.Task) {
 	if t.Start != nil || t.Due != nil || t.Someday || t.ParentID != nil {
+		return
+	}
+	if st, _ := s.store.GetSettings(ctx, t.UserID); st.DefaultStart == "none" {
 		return
 	}
 	today, _, _ := s.today(ctx, t.UserID)

@@ -74,6 +74,7 @@ interface Settings {
   title: string                      // box-wide, admins only
   week_start: 0|1                    // 0 Sunday, 1 Monday
   default_list_id: number            // where quick add puts tasks without /list (the inbox by default)
+  default_start: 'today'|'none'      // the When of a new top-level task with no date/deadline/someday ("today" by default)
   default_estimate_min: number       // 30
   day_start: string                  // "09:00": when an all-day task's reminder and the mirror's timed-for-all-day use
   default_alarm: string              // "" | "PT0S" | "-PT15M" | … added to new timed tasks made here
@@ -118,7 +119,7 @@ interface Settings {
 | Method | Path | Notes |
 |---|---|---|
 | GET | /tasks | query below. Answer `{tasks: Task[], total: number, groups?: {key, title, ids}[]}` |
-| POST | /tasks | any Task fields (title required) + `tags`, `alarms`; `text` instead of title → quick-add parsing applies. A top-level task with no `start`, `due` or `someday` gets `start` = today (send `"start": null` to keep it undated) |
+| POST | /tasks | any Task fields (title required) + `tags`, `alarms`; `text` instead of title → quick-add parsing applies. A top-level task with no `start`, `due` or `someday` gets `start` = today unless setting `default_start` is `"none"` (send `"start": null` to keep it undated) |
 | POST | /tasks/quick | `{text, list_id?, commit: boolean}` → `{task: Task (draft when !commit), parsed: {title, due, start, list_id, tags, priority, repeat, alarm}}`; a committed task with no date starts today (`parsed` shows only what the text said) |
 | GET | /tasks/{id} | with `subtasks`, `attachments`, `activity` (last 50) |
 | PUT | /tasks/{id} | partial merge of Task fields (explicit `null` clears nullable ones); `tags`/`alarms` replace whole |

@@ -11,7 +11,7 @@ const DefaultTitle = "Pocket Tasks"
 
 func defaults() Settings {
 	return Settings{
-		Title: DefaultTitle, WeekStart: 1, DefaultEstimateMin: 30, DayStart: "09:00", ShowDoneInLists: false, LogbookGroup: "day",
+		Title: DefaultTitle, WeekStart: 1, DefaultEstimateMin: 30, DayStart: "09:00", DefaultStart: "today", ShowDoneInLists: false, LogbookGroup: "day",
 		MirrorEnabled: true, MirrorIncludeDue: true, MirrorRollover: true, MirrorDone: true, MirrorDoneCalDAV: false,
 		NotifyKind: "apprise", NotifyAlarms: true, TrashDays: 30, NCMode: "off", NCVia: "core", NCIntervalMin: 2,
 	}
@@ -52,6 +52,10 @@ func (s *Store) GetSettings(ctx context.Context, userID int64) (Settings, error)
 		case "default_list_id":
 			n, _ := strconv.ParseInt(v, 10, 64)
 			st.DefaultListID = n
+		case "default_start":
+			if v == "today" || v == "none" {
+				st.DefaultStart = v
+			}
 		case "default_estimate_min":
 			st.DefaultEstimateMin = atoi(v, st.DefaultEstimateMin)
 		case "day_start":
@@ -133,6 +137,7 @@ func (s *Store) SaveSettings(ctx context.Context, userID int64, st Settings) err
 	kv := map[string]string{
 		"week_start":           strconv.Itoa(st.WeekStart),
 		"default_list_id":      strconv.FormatInt(st.DefaultListID, 10),
+		"default_start":        st.DefaultStart,
 		"default_estimate_min": strconv.Itoa(st.DefaultEstimateMin),
 		"day_start":            st.DayStart,
 		"default_alarm":        st.DefaultAlarm,

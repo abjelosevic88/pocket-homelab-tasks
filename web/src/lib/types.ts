@@ -53,6 +53,7 @@ export interface Settings {
   title: string
   week_start: 0 | 1
   default_list_id: number
+  default_start: 'today' | 'none'
   default_estimate_min: number
   day_start: string
   default_alarm: string

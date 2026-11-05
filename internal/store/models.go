@@ -235,6 +235,7 @@ type Settings struct {
 
 	WeekStart          int    `json:"week_start"`
 	DefaultListID      int64  `json:"default_list_id"`
+	DefaultStart       string `json:"default_start"` // "today" | "none": the When of a new undated task
 	DefaultEstimateMin int    `json:"default_estimate_min"`
 	DayStart           string `json:"day_start"`
 	DefaultAlarm       string `json:"default_alarm"`

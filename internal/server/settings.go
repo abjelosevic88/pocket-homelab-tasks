@@ -103,6 +103,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if st.DefaultStart != "none" {
+		st.DefaultStart = "today"
+	}
 	if st.LogbookGroup != "list" {
 		st.LogbookGroup = "day"
 	}
