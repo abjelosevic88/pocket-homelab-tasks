@@ -780,6 +780,9 @@ func (s *Server) newTask(ctx context.Context, uid int64, raw map[string]json.Raw
 	if strings.TrimSpace(t.Title) == "" {
 		return nil, badRequest("a task needs a title")
 	}
+	if !hasKey(raw, "start") {
+		s.startToday(ctx, t)
+	}
 	if len(t.Alarms) == 0 && st.DefaultAlarm != "" && !hasKey(raw, "alarms") && ((t.Due != nil && !ical.IsDay(*t.Due)) || (t.Start != nil && !ical.IsDay(*t.Start))) {
 		t.Alarms = []ical.Alarm{{Trigger: st.DefaultAlarm}}
 	}
@@ -790,6 +793,16 @@ func (s *Server) newTask(ctx context.Context, uid int64, raw map[string]json.Raw
 }
 
 func hasKey(m map[string]json.RawMessage, k string) bool { _, ok := m[k]; return ok }
+
+// startToday makes a new top-level task with no date land in Today: an
+// explicit "start": null, a deadline, Someday or a parent keep it undated.
+func (s *Server) startToday(ctx context.Context, t *store.Task) {
+	if t.Start != nil || t.Due != nil || t.Someday || t.ParentID != nil {
+		return
+	}
+	today, _, _ := s.today(ctx, t.UserID)
+	t.Start = &today
+}
 
 func (s *Server) defaultList(ctx context.Context, uid int64, st store.Settings) int64 {
 	if st.DefaultListID > 0 {
@@ -895,6 +908,7 @@ func (s *Server) handleQuick(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"task": t, "parsed": parsed})
 		return
 	}
+	s.startToday(ctx, t)
 	if err := s.saveTask(ctx, t, "quick", "created"); err != nil {
 		s.fail(w, err, "create task")
 		return

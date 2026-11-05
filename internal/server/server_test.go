@@ -262,3 +262,33 @@ func TestListKeepAdding(t *testing.T) {
 		t.Fatalf("rename dropped keep_adding: %d %s", w.Code, w.Body.String())
 	}
 }
+
+func TestNewTasksStartToday(t *testing.T) {
+	s, h := testServer(t)
+	me := newPerson(t, s, h, "me@example.com")
+	u, _ := s.store.GetUserByEmail(context.Background(), "me@example.com")
+	today, _, _ := s.today(context.Background(), u.ID)
+	start := func(task map[string]any) any { return task["start"] }
+
+	_, a := me.do("POST", "/api/v1/tasks", map[string]any{"title": "plain"})
+	if start(a) != today {
+		t.Errorf("plain: start = %v, want %s", start(a), today)
+	}
+	_, out := me.do("POST", "/api/v1/tasks/quick", map[string]any{"text": "quick one", "commit": true})
+	if start(out["task"].(map[string]any)) != today {
+		t.Errorf("quick: start = %v", start(out["task"].(map[string]any)))
+	}
+	_, out = me.do("POST", "/api/v1/tasks/quick", map[string]any{"text": "quick one", "commit": false})
+	if out["parsed"].(map[string]any)["start"] != "" {
+		t.Errorf("preview should only show what the text said: %v", out["parsed"])
+	}
+	_, b := me.do("POST", "/api/v1/tasks", map[string]any{"title": "undated", "start": nil})
+	_, c := me.do("POST", "/api/v1/tasks", map[string]any{"title": "deadline", "due": "2030-01-01"})
+	_, d := me.do("POST", "/api/v1/tasks", map[string]any{"title": "later", "someday": true})
+	_, e := me.do("POST", "/api/v1/tasks", map[string]any{"title": "sub", "parent_id": a["id"]})
+	for _, x := range []map[string]any{b, c, d, e} {
+		if start(x) != nil {
+			t.Errorf("%v: start = %v, want none", x["title"], start(x))
+		}
+	}
+}

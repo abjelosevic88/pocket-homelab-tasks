@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import type { Alarm, Parsed, QuickAnswer, Repeat, Task } from '../lib/types'
-import { label, rruleLabel, alarmLabel } from '../lib/dates'
+import { label, rruleLabel, alarmLabel, today } from '../lib/dates'
 import { PRIORITY_MARK, priorityLevel } from '../lib/format'
 import { Icon } from './icons'
 import { useToast } from './ui'
@@ -88,7 +88,11 @@ export function QuickAdd({ defaults = {}, placeholder = 'Add a task', onAdded, a
 
   const expand = () => {
     const p = parsed
-    setX({ notes: x.notes, list_id: (p?.list_id && !removed.has('list') ? p.list_id : null) ?? listId ?? settings?.default_list_id ?? null, section_id: defaults.section_id ?? null, start: p?.start && !removed.has('start') ? p.start : defaults.start ?? null, due: p?.due && !removed.has('due') ? p.due : defaults.due ?? null, repeat: p?.repeat && !removed.has('repeat') ? p.repeat : null, priority: p?.priority && !removed.has('priority') ? p.priority : 0, tags: p?.tags && !removed.has('tags') ? p.tags : [], alarms: p?.alarm && !removed.has('alarm') ? [{ trigger: p.alarm }] : [] })
+    const pStart = p?.start && !removed.has('start') ? p.start : defaults.start ?? null
+    const pDue = p?.due && !removed.has('due') ? p.due : defaults.due ?? null
+    // Same rule as the server: a new top-level task with no date starts today.
+    const start = pStart ?? (pDue || defaults.someday || defaults.parent_id ? null : today())
+    setX({ notes: x.notes, list_id: (p?.list_id && !removed.has('list') ? p.list_id : null) ?? listId ?? settings?.default_list_id ?? null, section_id: defaults.section_id ?? null, start, due: pDue, repeat: p?.repeat && !removed.has('repeat') ? p.repeat : null, priority: p?.priority && !removed.has('priority') ? p.priority : 0, tags: p?.tags && !removed.has('tags') ? p.tags : [], alarms: p?.alarm && !removed.has('alarm') ? [{ trigger: p.alarm }] : [] })
     setExpanded(true)
   }
 

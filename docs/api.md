@@ -118,8 +118,8 @@ interface Settings {
 | Method | Path | Notes |
 |---|---|---|
 | GET | /tasks | query below. Answer `{tasks: Task[], total: number, groups?: {key, title, ids}[]}` |
-| POST | /tasks | any Task fields (title required) + `tags`, `alarms`; `text` instead of title → quick-add parsing applies |
-| POST | /tasks/quick | `{text, list_id?, commit: boolean}` → `{task: Task (draft when !commit), parsed: {title, due, start, list_id, tags, priority, repeat, alarm}}` |
+| POST | /tasks | any Task fields (title required) + `tags`, `alarms`; `text` instead of title → quick-add parsing applies. A top-level task with no `start`, `due` or `someday` gets `start` = today (send `"start": null` to keep it undated) |
+| POST | /tasks/quick | `{text, list_id?, commit: boolean}` → `{task: Task (draft when !commit), parsed: {title, due, start, list_id, tags, priority, repeat, alarm}}`; a committed task with no date starts today (`parsed` shows only what the text said) |
 | GET | /tasks/{id} | with `subtasks`, `attachments`, `activity` (last 50) |
 | PUT | /tasks/{id} | partial merge of Task fields (explicit `null` clears nullable ones); `tags`/`alarms` replace whole |
 | DELETE | /tasks/{id} | to trash (with its subtasks) |
