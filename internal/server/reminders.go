@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -45,6 +46,23 @@ func (s *Server) fireAlarms(ctx context.Context) {
 	if err != nil {
 		return
 	}
+	// Reminders of a list that groups its notifications go out together, one per list and person.
+	type bucket struct {
+		uid    int64
+		list   *store.List
+		titles []string
+	}
+	var buckets []*bucket
+	lists := map[[2]int64]*store.List{}
+	listOf := func(uid, id int64) *store.List {
+		k := [2]int64{uid, id}
+		if l, ok := lists[k]; ok {
+			return l
+		}
+		l, _ := s.store.GetList(ctx, uid, id)
+		lists[k] = l
+		return l
+	}
 	for _, a := range due {
 		// anything older than a day is stale (the box was off): mark, don't send
 		if at, err := time.Parse(time.RFC3339, a.FireAt); err == nil && time.Since(at) > 24*time.Hour {
@@ -70,6 +88,22 @@ func (s *Server) fireAlarms(ctx context.Context) {
 		if !st.NotifyAlarms {
 			continue
 		}
+		if l := listOf(a.UserID, t.ListID); l != nil && l.GroupNotifications {
+			var b *bucket
+			for _, x := range buckets {
+				if x.uid == a.UserID && x.list.ID == l.ID {
+					b = x
+				}
+			}
+			if b == nil {
+				b = &bucket{uid: a.UserID, list: l}
+				buckets = append(buckets, b)
+			}
+			if !slices.Contains(b.titles, t.Title) {
+				b.titles = append(b.titles, t.Title)
+			}
+			continue
+		}
 		kind, url, token := s.notifyRoute(ctx, a.UserID, st)
 		if url == "" {
 			continue
@@ -80,6 +114,34 @@ func (s *Server) fireAlarms(ctx context.Context) {
 		}
 		cancel()
 	}
+	for _, b := range buckets {
+		st, _ := s.store.GetSettings(ctx, b.uid)
+		kind, url, token := s.notifyRoute(ctx, b.uid, st)
+		if url == "" {
+			continue
+		}
+		title, body := groupedReminder(b.list.Name, b.titles)
+		cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		if err := notify.Send(cctx, kind, url, token, title, body, s.listLink(b.list)); err != nil {
+			s.log.Warn("grouped reminder not sent", "list", b.list.ID, "err", err)
+		}
+		cancel()
+	}
+}
+
+// groupedReminder is the one notification for a list's reminders: "Kupovina · 3", "Jaja, Kefir, So".
+func groupedReminder(list string, titles []string) (string, string) {
+	if len(titles) == 1 {
+		return titles[0], list
+	}
+	return fmt.Sprintf("%s · %d", list, len(titles)), strings.Join(titles, ", ")
+}
+
+func (s *Server) listLink(l *store.List) string {
+	if s.cfg.BaseURL == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/list/%d", s.cfg.BaseURL, l.ID)
 }
 
 func (s *Server) taskLink(t *store.Task) string {
@@ -164,12 +226,32 @@ func (s *Server) digests(ctx context.Context) {
 		}
 		var lines []string
 		overdue := 0
+		// A list that groups its notifications is one line: "• Kupovina: Jaja, Kefir, So".
+		grouped := map[int64]int{}
+		allLists, _ := s.store.ListLists(ctx, uid)
+		groups := map[int64]string{}
+		for _, l := range allLists {
+			if l.GroupNotifications {
+				groups[l.ID] = l.Name
+			}
+		}
 		for _, t := range tasks {
 			s.decorate(t, today, now.Format(ical.TimeLayout))
+			if t.Overdue {
+				overdue++
+			}
+			if name, ok := groups[t.ListID]; ok {
+				if i, ok := grouped[t.ListID]; ok {
+					lines[i] += ", " + t.Title
+				} else {
+					grouped[t.ListID] = len(lines)
+					lines = append(lines, "• "+name+": "+t.Title)
+				}
+				continue
+			}
 			mark := "•"
 			if t.Overdue {
 				mark = "⚠︎"
-				overdue++
 			}
 			when := ""
 			if d := t.DueStr(); d != "" && !ical.IsDay(d) && ical.Day(d) == today {

@@ -31,7 +31,7 @@ export interface Task {
   snippet?: string
 }
 
-export interface List { id: number; uid: string; name: string; color: string; description: string; sort_order: number; area_id: number | null; is_inbox: boolean; archived: boolean; open_count: number; nc_href?: string; created_at: string }
+export interface List { id: number; uid: string; name: string; color: string; description: string; sort_order: number; area_id: number | null; is_inbox: boolean; archived: boolean; keep_adding?: boolean; group_notifications?: boolean; open_count: number; nc_href?: string; created_at: string }
 export interface Area { id: number; name: string; color: string; sort_order: number }
 export interface Section { id: number; list_id: number; name: string; sort_order: number }
 export interface Filter { id: number; name: string; icon: string; sort_order: number; query: TaskQuery }

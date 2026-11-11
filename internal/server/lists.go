@@ -139,6 +139,9 @@ func (s *Server) handleUpdateList(w http.ResponseWriter, r *http.Request) {
 	if v, ok := raw["keep_adding"].(bool); ok {
 		l.KeepAdding = v
 	}
+	if v, ok := raw["group_notifications"].(bool); ok {
+		l.GroupNotifications = v
+	}
 	if err := s.store.UpdateList(ctx, l); err != nil {
 		s.fail(w, err, "update list")
 		return

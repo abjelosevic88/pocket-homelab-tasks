@@ -49,14 +49,17 @@ type List struct {
 	IsInbox     bool    `json:"is_inbox"`
 	Archived    bool    `json:"archived"`
 	// KeepAdding: quick add stays open after adding here, for the next one (a shopping list).
-	KeepAdding bool   `json:"keep_adding"`
-	OpenCount  int    `json:"open_count"`
-	Seq        int64  `json:"-"`
-	NCHref     string `json:"nc_href,omitempty"`
-	NCToken    string `json:"-"`
-	NCCtag     string `json:"-"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
+	KeepAdding bool `json:"keep_adding"`
+	// GroupNotifications: reminders of this list's tasks come as one notification, and the
+	// digest and the apps show the list as one line (a shopping list).
+	GroupNotifications bool   `json:"group_notifications"`
+	OpenCount          int    `json:"open_count"`
+	Seq                int64  `json:"-"`
+	NCHref             string `json:"nc_href,omitempty"`
+	NCToken            string `json:"-"`
+	NCCtag             string `json:"-"`
+	CreatedAt          string `json:"created_at"`
+	UpdatedAt          string `json:"updated_at"`
 }
 
 // Section is a heading inside a list.
