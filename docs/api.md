@@ -202,7 +202,8 @@ Outside `/api`: `GET /feed/{token}.ics` (public by token, read-only, `?done=0|1&
 | GET | /backup | SQLite snapshot (admin) |
 | GET | /export.json | this person's lists, sections, tasks |
 | GET | /export.ics?list_id= | one list (or all) as iCalendar |
-| POST | /import | multipart `file`: `.ics` (VTODOs into `list_id` or a new list named after X-WR-CALNAME) or a Pocket Tasks `.json` export |
+| POST | /import | multipart `file`: `.ics` (VTODOs into `list_id`, else the list named by the VTODO's or the calendar's X-WR-CALNAME, else "Moved in"; a list of that name is reused) or a Pocket Tasks `.json` export. Only adds: tasks whose UID is already here are skipped → `{imported, skipped, …}` |
+| GET | /pocket/portable | what Pocket Move may copy out and bring in (export.json = `pocket`, export.ics = `ical-todos`; /import takes both) |
 | POST | /client-error | the UI reports a crash |
 
 ## Link scopes (Pocket Core)
@@ -211,3 +212,5 @@ Outside `/api`: `GET /feed/{token}.ics` (public by token, read-only, `?done=0|1&
 /calendar, /dashboard, /search, /areas, /filters.
 `tasks:write` → POST /tasks, /tasks/quick, PUT /tasks/{id}, POST /tasks/{id}/complete. `POST /tasks` with
 `{title, due?, url, notes}` stores `url` as given and answers the Task (201).
+`move:export` → GET /pocket/portable, /export.json, /export.ics. `move:import` → GET /pocket/portable, POST /import
+(Pocket Move, for the person the link acts for).

@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -286,12 +288,25 @@ func (s *Server) handleExportICS(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err, "export")
 		return
 	}
+	// every list at once: each to-do says its list (X-WR-CALNAME, as Pocket
+	// Tasks' import reads it), so the lists come back as they were
+	listNames := map[int64]string{}
+	if listID == 0 {
+		if lists, err := s.store.ListLists(ctx, uid); err == nil {
+			for _, l := range lists {
+				listNames[l.ID] = l.Name
+			}
+		}
+	}
 	cal := ical.NewCalendar()
 	cal.SetText("X-WR-CALNAME", name)
 	for _, t := range tasks {
 		if c, err := ical.Parse(t.ICS); err == nil {
 			for _, ch := range c.Children {
 				if ch.Name == "VTODO" {
+					if ln := listNames[t.ListID]; ln != "" {
+						ch.SetText("X-WR-CALNAME", ln)
+					}
 					cal.Children = append(cal.Children, ch)
 				}
 			}
@@ -304,7 +319,7 @@ func (s *Server) handleExportICS(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	ctx, uid := r.Context(), me(r)
-	r.Body = http.MaxBytesReader(w, r.Body, 200<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, importMaxBytes)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		writeErr(w, http.StatusBadRequest, "could not read the upload")
 		return
@@ -325,69 +340,129 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	fmt.Sscanf(r.FormValue("list_id"), "%d", &listID)
 	text := string(data)
 	if strings.HasPrefix(strings.TrimSpace(text), "{") {
-		n, err := s.importJSON(ctx, uid, data)
+		n, skipped, err := s.importJSON(ctx, uid, data)
 		if err != nil {
 			s.fail(w, err, "import")
 			return
 		}
 		s.touch()
-		writeJSON(w, http.StatusOK, map[string]any{"imported": n, "tasks": n})
+		writeJSON(w, http.StatusOK, map[string]any{"imported": n, "tasks": n, "skipped": skipped})
 		return
 	}
-	n, l, err := s.importICS(ctx, uid, text, listID, strings.TrimSuffix(fh.Filename, ".ics"))
+	res, err := s.importICS(ctx, uid, text, listID)
 	if err != nil {
 		s.fail(w, err, "import")
 		return
 	}
 	s.touch()
-	writeJSON(w, http.StatusOK, map[string]any{"imported": n, "tasks": n, "list": l, "lists": 1})
+	writeJSON(w, http.StatusOK, map[string]any{"imported": res.n, "tasks": res.n, "skipped": res.skipped, "list": res.first, "lists": res.created})
 }
 
-// importICS adds the VTODOs of a calendar to a list (a new one named after
-// the calendar when listID is 0). Tasks whose UID is already there are skipped.
-func (s *Server) importICS(ctx context.Context, uid int64, text string, listID int64, fallbackName string) (int, *store.List, error) {
+// importMaxBytes is the largest file /import takes (also in the Portable description).
+const importMaxBytes = 200 << 20
+
+// movedInList is where imported to-dos go when the file does not name a list.
+const movedInList = "Moved in"
+
+type icsImport struct {
+	n, skipped, created int
+	first               *store.List
+}
+
+// importICS adds the VTODOs of a calendar. They go into listID when given,
+// else into the list the VTODO or the calendar names (X-WR-CALNAME, an
+// existing list of that name is reused), else into "Moved in". Lists are
+// made only when a task goes in. It only adds: a task whose UID is already
+// here is skipped, so the same file twice changes nothing.
+func (s *Server) importICS(ctx context.Context, uid int64, text string, listID int64) (*icsImport, error) {
 	cal, err := ical.Parse(text)
 	if err != nil {
-		return 0, nil, badRequest("not an iCalendar file")
+		return nil, badRequest("not an iCalendar file")
 	}
-	var l *store.List
+	res := &icsImport{}
+	var fixed *store.List
 	if listID > 0 {
-		l, err = s.store.GetList(ctx, uid, listID)
+		fixed, err = s.store.GetList(ctx, uid, listID)
 		if err != nil {
-			return 0, nil, badRequest("no such list")
+			return nil, badRequest("no such list")
 		}
-	} else {
-		name := strings.TrimSpace(cal.Text("X-WR-CALNAME"))
+		res.first = fixed
+	}
+	byName := map[string]*store.List{}
+	if lists, err := s.store.ListLists(ctx, uid); err == nil {
+		for i := range lists {
+			key := strings.ToLower(strings.TrimSpace(lists[i].Name))
+			if _, ok := byName[key]; !ok {
+				byName[key] = &lists[i]
+			}
+		}
+	}
+	calName := strings.TrimSpace(cal.Text("X-WR-CALNAME"))
+	listFor := func(todo *ical.Component) (*store.List, error) {
+		if fixed != nil {
+			return fixed, nil
+		}
+		name, color := strings.TrimSpace(todo.Text("X-WR-CALNAME")), ""
 		if name == "" {
-			name = fallbackName
+			name, color = calName, cal.Value("X-APPLE-CALENDAR-COLOR")
 		}
 		if name == "" {
-			name = "Imported"
+			name = movedInList
 		}
-		l = &store.List{UserID: uid, Name: name}
-		if c, err := cleanColor(cal.Value("X-APPLE-CALENDAR-COLOR")); err == nil {
+		key := strings.ToLower(name)
+		if l, ok := byName[key]; ok {
+			return l, nil
+		}
+		l := &store.List{UserID: uid, Name: name}
+		if c, err := cleanColor(color); err == nil && color != "" {
 			l.Color = c
 		}
 		if err := s.store.CreateList(ctx, l); err != nil {
-			return 0, nil, err
+			return nil, err
 		}
+		byName[key] = l
+		res.created++
+		return l, nil
 	}
 	loc := s.loc(ctx, uid)
-	n := 0
-	// parents first so RELATED-TO resolves
 	todos := cal.ChildrenNamed("VTODO")
-	for pass := 0; pass < 2; pass++ {
-		for _, todo := range todos {
+	inFile := map[string]bool{}
+	for _, todo := range todos {
+		if strings.TrimSpace(todo.Text("UID")) == "" {
+			// a stable UID from what the to-do says, so a second run finds it
+			sum := sha256.Sum256([]byte(todo.Text("SUMMARY") + "\x00" + todo.Value("DUE") + "\x00" + todo.Value("DTSTART") + "\x00" + todo.Text("DESCRIPTION") + "\x00" + calName))
+			todo.SetText("UID", "import-"+hex.EncodeToString(sum[:12]))
+		}
+		inFile[strings.TrimSpace(todo.Text("UID"))] = true
+	}
+	// parents before their subtasks so RELATED-TO resolves, however deep; a
+	// round where everything waits (a loop of parents) lets the rest in
+	processed := map[string]bool{}
+	pending, force := todos, false
+	for len(pending) > 0 {
+		var wait []*ical.Component
+		for _, todo := range pending {
 			it, ok := ical.FromVTODO(todo, loc)
 			if !ok || it.UID == "" {
 				continue
 			}
-			if (pass == 0) != (it.ParentUID == "") {
+			if !force && it.ParentUID != "" && it.ParentUID != it.UID && inFile[it.ParentUID] && !processed[it.ParentUID] {
+				wait = append(wait, todo)
 				continue
 			}
-			if _, err := s.store.GetTaskByUID(ctx, uid, it.UID); err == nil {
+			processed[it.UID] = true
+			if s.hasTaskUID(ctx, uid, it.UID) {
+				res.skipped++
 				continue
 			}
+			l, err := listFor(todo)
+			if err != nil {
+				return nil, err
+			}
+			if res.first == nil {
+				res.first = l
+			}
+			todo.Remove("X-WR-CALNAME")
 			one := ical.NewCalendar()
 			one.Children = append(one.Children, todo)
 			t := &store.Task{UserID: uid, ListID: l.ID, ICS: one.String()}
@@ -395,32 +470,69 @@ func (s *Server) importICS(ctx context.Context, uid int64, text string, listID i
 			t.ETag = ical.ETag(t.ICS)
 			t.Href = it.UID + ".ics"
 			if err := s.store.InsertTask(ctx, t); err != nil {
+				res.skipped++
 				continue
 			}
 			s.scheduleAlarms(ctx, t)
-			n++
+			res.n++
 		}
+		force = len(wait) == len(pending)
+		pending = wait
 	}
-	return n, l, nil
+	return res, nil
 }
 
-func (s *Server) importJSON(ctx context.Context, uid int64, data []byte) (int, error) {
+func (s *Server) hasTaskUID(ctx context.Context, uid int64, tuid string) bool {
+	_, err := s.store.GetTaskByUID(ctx, uid, tuid)
+	return err == nil
+}
+
+// importJSON adds a Pocket Tasks export. Areas, lists, sections and saved
+// filters with the same name are reused, and tasks whose UID is already here
+// are skipped, so the same file twice changes nothing.
+func (s *Server) importJSON(ctx context.Context, uid int64, data []byte) (int, int, error) {
 	var in exportFile
 	if err := json.Unmarshal(data, &in); err != nil || in.App != "pocket-tasks" {
-		return 0, badRequest("not a Pocket Tasks export")
+		return 0, 0, badRequest("not a Pocket Tasks export")
+	}
+	key := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+	haveAreas := map[string]int64{}
+	if areas, err := s.store.ListAreas(ctx, uid); err == nil {
+		for _, a := range areas {
+			haveAreas[key(a.Name)] = a.ID
+		}
 	}
 	areaMap := map[int64]int64{}
 	for _, a := range in.Areas {
+		if id, ok := haveAreas[key(a.Name)]; ok {
+			areaMap[a.ID] = id
+			continue
+		}
 		na := &store.Area{UserID: uid, Name: a.Name, Color: a.Color}
 		if s.store.CreateArea(ctx, na) == nil {
-			areaMap[a.ID] = na.ID
+			areaMap[a.ID], haveAreas[key(a.Name)] = na.ID, na.ID
+		}
+	}
+	haveLists := map[string]int64{}
+	if lists, err := s.store.ListLists(ctx, uid); err == nil {
+		for _, l := range lists {
+			if _, ok := haveLists[key(l.Name)]; !ok && !l.IsInbox {
+				haveLists[key(l.Name)] = l.ID
+			}
 		}
 	}
 	listMap := map[int64]int64{}
-	inbox, _ := s.store.Inbox(ctx, uid)
+	inbox, err := s.store.Inbox(ctx, uid)
+	if err != nil {
+		return 0, 0, err
+	}
 	for _, l := range in.Lists {
 		if l.IsInbox {
 			listMap[l.ID] = inbox.ID
+			continue
+		}
+		if id, ok := haveLists[key(l.Name)]; ok {
+			listMap[l.ID] = id
 			continue
 		}
 		nl := &store.List{UserID: uid, Name: l.Name, Color: l.Color, Description: l.Description, Archived: l.Archived}
@@ -430,7 +542,13 @@ func (s *Server) importJSON(ctx context.Context, uid int64, data []byte) (int, e
 			}
 		}
 		if s.store.CreateList(ctx, nl) == nil {
-			listMap[l.ID] = nl.ID
+			listMap[l.ID], haveLists[key(l.Name)] = nl.ID, nl.ID
+		}
+	}
+	haveSecs := map[string]int64{}
+	if secs, err := s.store.ListSections(ctx, uid, 0); err == nil {
+		for _, x := range secs {
+			haveSecs[fmt.Sprint(x.ListID)+"\x00"+key(x.Name)] = x.ID
 		}
 	}
 	secMap := map[int64]int64{}
@@ -439,17 +557,36 @@ func (s *Server) importJSON(ctx context.Context, uid int64, data []byte) (int, e
 		if !ok {
 			continue
 		}
+		k := fmt.Sprint(lid) + "\x00" + key(x.Name)
+		if id, ok := haveSecs[k]; ok {
+			secMap[x.ID] = id
+			continue
+		}
 		ns := &store.Section{UserID: uid, ListID: lid, Name: x.Name}
 		if s.store.CreateSection(ctx, ns) == nil {
-			secMap[x.ID] = ns.ID
+			secMap[x.ID], haveSecs[k] = ns.ID, ns.ID
 		}
 	}
-	n := 0
+	n, skipped := 0, 0
 	taskMap := map[int64]int64{}
-	for pass := 0; pass < 2; pass++ {
-		for _, t := range in.Tasks {
-			if (pass == 0) != (t.ParentID == nil) {
-				continue
+	// parents before their subtasks, however deep; a round where everything
+	// waits (a loop of parents) lets the rest in
+	pending, force := in.Tasks, false
+	for len(pending) > 0 {
+		var wait []*store.Task
+		for _, t := range pending {
+			if !force && t.ParentID != nil && inExport(in.Tasks, *t.ParentID) {
+				if _, ok := taskMap[*t.ParentID]; !ok {
+					wait = append(wait, t)
+					continue
+				}
+			}
+			if t.UID != "" {
+				if have, err := s.store.GetTaskByUID(ctx, uid, t.UID); err == nil {
+					taskMap[t.ID] = have.ID
+					skipped++
+					continue
+				}
 			}
 			lid, ok := listMap[t.ListID]
 			if !ok {
@@ -464,27 +601,48 @@ func (s *Server) importJSON(ctx context.Context, uid int64, data []byte) (int, e
 				}
 			}
 			if t.ParentID != nil {
-				if id, ok := taskMap[*t.ParentID]; ok {
+				if id, ok := taskMap[*t.ParentID]; ok && id > 0 {
 					nt.ParentID = &id
 				}
-			}
-			if _, err := s.store.GetTaskByUID(ctx, uid, nt.UID); err == nil {
-				nt.UID = ""
 			}
 			if err := s.saveTask(ctx, &nt, "import", "created"); err == nil {
 				taskMap[t.ID] = nt.ID
 				n++
+			} else {
+				taskMap[t.ID] = 0
 			}
+		}
+		force = len(wait) == len(pending)
+		pending = wait
+	}
+	haveFilters := map[string]bool{}
+	if fs, err := s.store.ListFilters(ctx, uid); err == nil {
+		for _, f := range fs {
+			haveFilters[key(f.Name)] = true
 		}
 	}
 	for _, f := range in.Filters {
+		if haveFilters[key(f.Name)] {
+			continue
+		}
 		nf := &store.Filter{UserID: uid, Name: f.Name, Icon: f.Icon, Query: f.Query}
 		if id, ok := listMap[nf.Query.ListID]; ok {
 			nf.Query.ListID = id
 		}
-		_ = s.store.SaveFilter(ctx, nf)
+		if s.store.SaveFilter(ctx, nf) == nil {
+			haveFilters[key(f.Name)] = true
+		}
 	}
-	return n, nil
+	return n, skipped, nil
+}
+
+func inExport(tasks []*store.Task, id int64) bool {
+	for _, t := range tasks {
+		if t.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func firstFile(r *http.Request, names ...string) *multipartFile {
