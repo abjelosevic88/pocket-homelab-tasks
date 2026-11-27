@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
+	"github.com/abjelosevic88/pocket-homelab-core/sdk/appkit"
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/config"
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/store"
 )
@@ -48,8 +49,11 @@ type Server struct {
 	coreOK  bool
 	coreErr string
 
-	oidc   *oidcProvider
-	oidcMu sync.Mutex
+	// the shared chassis (appkit in the Core SDK): sign-in, request auth,
+	// connection-mode reports
+	rp    *appkit.RP
+	auth  *appkit.Auth[*store.User]
+	modes *appkit.ModeReporter
 
 	syncMu    sync.Mutex
 	syncState map[int64]*ncState // per user
@@ -62,7 +66,8 @@ func New(cfg *config.Config, st *store.Store, log *slog.Logger, webFS fs.FS) *Se
 	s := &Server{cfg: cfg, store: st, log: log, webFS: webFS, started: time.Now(), syncState: map[int64]*ncState{}, syncNow: make(chan int64, 16)}
 	s.http = &http.Client{Timeout: 60 * time.Second}
 	s.core = core.New(cfg.CoreURL, core.Options{DB: st.DB, TokenFile: cfg.DataDir + "/core.token", UserAgent: ua, ServiceCache: time.Minute, ServiceStale: 15 * time.Minute})
-	s.oidc = &oidcProvider{issuerURL: cfg.OIDCIssuer}
+	s.rp, s.auth = s.newRP(), s.newAuth()
+	s.modes = &appkit.ModeReporter{Core: s.core, Modes: s.connModes, Log: s.log}
 	return s
 }
 
@@ -217,9 +222,9 @@ func (s *Server) Router() http.Handler {
 		r.Post("/auth/login", s.handleLogin)
 		r.Post("/auth/setup", s.handleSetup)
 		r.Get("/auth/status", s.handleAuthStatus)
-		r.Get("/auth/oidc/start", s.handleOIDCStart)
-		r.Get("/auth/oidc/callback", s.handleOIDCCallback)
-		r.Post("/client-error", s.handleClientError)
+		r.Get("/auth/oidc/start", s.rp.Start)
+		r.Get("/auth/oidc/callback", s.rp.Callback)
+		r.Post("/client-error", appkit.ClientErrors(s.log, s.whoFor))
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)
@@ -398,6 +403,15 @@ func queryBool(r *http.Request, name string) bool {
 
 func me(r *http.Request) int64 { return actorID(r.Context()) }
 
+func firstNonEmpty(v ...string) string {
+	for _, s := range v {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 // ---------- Pocket Core ----------
 
 // coreLoop registers with Core on start (retrying until it answers) and
@@ -416,7 +430,7 @@ func (s *Server) coreLoop(ctx context.Context) {
 			s.log.Warn("pocket core: registration failed, retrying", "err", err, "in", wait.String())
 		} else {
 			wait = 30 * time.Minute
-			s.reportModes(ctx)
+			s.modes.Report(ctx)
 		}
 		select {
 		case <-ctx.Done():
@@ -468,23 +482,6 @@ func (s *Server) coreStatus() map[string]any {
 	s.coreMu.Lock()
 	defer s.coreMu.Unlock()
 	return map[string]any{"configured": s.core.Configured(), "url": s.cfg.CoreURL, "registered": s.coreOK, "error": s.coreErr}
-}
-
-// handleClientError writes a crash of the web app into the server's log.
-func (s *Server) handleClientError(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Message, Stack, Component, URL, Where, Agent string
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in); err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	who := ""
-	if u, err := s.resolveUser(r); err == nil && u != nil {
-		who = u.Email
-	}
-	s.log.Warn("web app crashed", "user", who, "where", in.Where, "url", in.URL, "message", in.Message, "stack", in.Stack, "component", in.Component, "agent", in.Agent)
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {

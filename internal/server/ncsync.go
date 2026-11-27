@@ -157,7 +157,7 @@ func (s *Server) runSync(ctx context.Context, uid int64, forced bool) {
 		st.NCMode = "off"
 		_ = s.store.SaveNextcloud(ctx, uid, st)
 		_ = s.store.SetUserSetting(ctx, uid, "nc.imported_at", store.Now())
-		go s.reportModes(context.Background())
+		s.modes.Soon()
 	}
 	if pulled+pushed > 0 {
 		s.touch()
@@ -568,7 +568,7 @@ func (s *Server) handleNCSave(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err, "save sync")
 		return
 	}
-	go s.reportModes(context.Background())
+	s.modes.Soon()
 	if st.NCMode != "off" {
 		select {
 		case s.syncNow <- uid:

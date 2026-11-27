@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
+	"github.com/abjelosevic88/pocket-homelab-core/sdk/appkit"
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/store"
 )
 
@@ -31,69 +31,47 @@ func actorID(ctx context.Context) int64 {
 	return 0
 }
 
-// requireAuth resolves the current user from a session cookie, bearer token,
-// or trusted proxy header depending on AUTH_MODE.
+// newAuth wires appkit.Auth (Core SDK) to Tasks' store: bearer tokens
+// (pcx_ link tokens through linkRoutes, pcd_/pcu_/pco_ through Core, else
+// Tasks' own API tokens), then Basic auth for CalDAV clients (basicUser),
+// then AUTH_MODE none/proxy, then the session cookie.
+func (s *Server) newAuth() *appkit.Auth[*store.User] {
+	return &appkit.Auth[*store.User]{
+		Core:             s.core,
+		Mode:             func() string { return s.cfg.AuthMode },
+		ProxyHeader:      s.cfg.AuthProxyHeader,
+		ProxyEmailHeader: s.cfg.AuthProxyEmailHeader,
+		SessionCookie:    sessionCookie,
+		Slug:             "tasks",
+		APIToken:         s.store.GetUserByAPIToken,
+		Session:          s.store.GetSessionUser,
+		Person:           s.firstOrSystemUser,
+		Identity:         s.coreIdentityUser,
+		Allow:            linkAllows,
+		Fallback: func(r *http.Request) (*store.User, bool, error) {
+			// CalDAV clients sign in with Basic auth: the password is an API
+			// token of this app (or, with local accounts, the password itself).
+			user, pass, ok := r.BasicAuth()
+			if !ok || pass == "" {
+				return nil, false, nil
+			}
+			u, err := s.basicUser(r.Context(), user, pass)
+			return u, true, err
+		},
+	}
+}
+
+// requireAuth resolves the current user (403 for a link token outside its
+// scopes, 401 otherwise).
 func (s *Server) requireAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		u, err := s.resolveUser(r)
-		if errors.Is(err, errLinkScope) {
-			writeErr(w, http.StatusForbidden, "this Pocket Core link does not cover "+r.Method+" "+r.URL.Path)
-			return
-		}
-		if err != nil || u == nil {
-			writeErr(w, http.StatusUnauthorized, "unauthorized")
-			return
-		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
-	})
+	return s.auth.Require(func(r *http.Request, u *store.User, _ appkit.Via) *http.Request {
+		return r.WithContext(context.WithValue(r.Context(), userKey, u))
+	})(next)
 }
 
 func (s *Server) resolveUser(r *http.Request) (*store.User, error) {
-	ctx := r.Context()
-	tok := ""
-	if h := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(h), "bearer ") {
-		tok = strings.TrimSpace(h[7:])
-	} else if t := r.Header.Get("X-API-Key"); t != "" {
-		tok = t
-	}
-	if tok == "" {
-		// CalDAV clients sign in with Basic auth: the password is an API
-		// token of this app (or, with local accounts, the password itself).
-		if user, pass, ok := r.BasicAuth(); ok && pass != "" {
-			return s.basicUser(ctx, user, pass)
-		}
-	}
-	if tok != "" {
-		if s.core.Configured() && core.IsLinkToken(tok) {
-			return s.linkUser(ctx, tok, r)
-		}
-		if s.core.Configured() && core.IsCoreToken(tok) {
-			return s.coreUser(ctx, tok)
-		}
-		return s.store.GetUserByAPIToken(ctx, tok)
-	}
-	switch s.cfg.AuthMode {
-	case "none":
-		return s.firstOrSystemUser(ctx, "admin@localhost", "Admin")
-	case "proxy":
-		name := r.Header.Get(s.cfg.AuthProxyHeader)
-		if name == "" {
-			return nil, http.ErrNoCookie
-		}
-		email := r.Header.Get(s.cfg.AuthProxyEmailHeader)
-		if email == "" {
-			email = name
-			if !strings.Contains(email, "@") {
-				email += "@proxy"
-			}
-		}
-		return s.firstOrSystemUser(ctx, strings.ToLower(email), name)
-	}
-	c, err := r.Cookie(sessionCookie)
-	if err != nil {
-		return nil, err
-	}
-	return s.sessionUser(ctx, c.Value)
+	u, _, err := s.auth.Resolve(r)
+	return u, err
 }
 
 // basicUser resolves Basic auth: an API token (the username is not needed
@@ -110,7 +88,7 @@ func (s *Server) basicUser(ctx context.Context, user, pass string) (*store.User,
 		return u, nil
 	}
 	if s.core.Configured() && core.IsCoreToken(pass) {
-		return s.coreUser(ctx, pass)
+		return s.auth.CoreToken(ctx, pass)
 	}
 	if s.cfg.AuthMode != "local" {
 		return nil, http.ErrNoCookie
@@ -121,20 +99,6 @@ func (s *Server) basicUser(ctx context.Context, user, pass string) (*store.User,
 		return nil, http.ErrNoCookie
 	}
 	return u, nil
-}
-
-// coreUser validates a token Pocket Core issued to a paired phone (pcd_), a
-// person (pcu_) or an OIDC client (pco_) and maps it to the local account
-// with the same email, creating a member on first sight.
-func (s *Server) coreUser(ctx context.Context, tok string) (*store.User, error) {
-	in, err := s.core.Introspect(ctx, tok)
-	if err != nil {
-		return nil, err
-	}
-	if !in.Active || in.User == nil || in.User.Email == "" {
-		return nil, http.ErrNoCookie
-	}
-	return s.coreIdentityUser(ctx, in)
 }
 
 func (s *Server) firstOrSystemUser(ctx context.Context, email, name string) (*store.User, error) {
@@ -155,10 +119,7 @@ func (s *Server) firstOrSystemUser(ctx context.Context, email, name string) (*st
 }
 
 func (s *Server) setSessionCookie(w http.ResponseWriter, id string, ttl time.Duration) {
-	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: id, Path: "/", HttpOnly: true,
-		Secure: s.cfg.SecureCookies, SameSite: http.SameSiteLaxMode, MaxAge: int(ttl.Seconds()),
-	})
+	appkit.SessionCookie{Name: sessionCookie, Secure: s.cfg.SecureCookies}.Set(w, id, ttl)
 }
 
 func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
@@ -177,8 +138,8 @@ func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 		"user":            u,
 		"version":         Version,
 		"title":           st.Title,
-		"oidc":            s.oidcEnabled() && s.cfg.AuthMode == "local",
-		"oidc_name":       s.oidcName(),
+		"oidc":            s.rp.Enabled() && s.cfg.AuthMode == "local",
+		"oidc_name":       s.rp.Name(),
 	})
 }
 
@@ -255,7 +216,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		_ = s.store.DeleteSession(r.Context(), c.Value)
 	}
-	s.setSessionCookie(w, "", -1)
+	appkit.SessionCookie{Name: sessionCookie, Secure: s.cfg.SecureCookies}.Clear(w)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -496,4 +457,12 @@ func (s *Server) handleDeleteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// whoFor names the signed-in person for a client-error report ("" if none).
+func (s *Server) whoFor(r *http.Request) string {
+	if u, err := s.resolveUser(r); err == nil && u != nil {
+		return u.Email
+	}
+	return ""
 }

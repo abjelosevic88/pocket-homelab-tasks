@@ -14,7 +14,7 @@ import Calendar from './pages/Calendar'
 import Search from './pages/Search'
 import Trash from './pages/Trash'
 import Settings from './pages/Settings'
-import { ErrorBoundary } from './components/ErrorBoundary'
+import { ErrorBoundary } from './pocket-ui/ErrorBoundary'
 
 function Gate({ children }: { children: React.ReactNode }) {
   const { status, user } = useApp()
