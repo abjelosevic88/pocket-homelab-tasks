@@ -209,9 +209,10 @@ func (s *Server) pocketWidget(r *http.Request) (*core.WidgetData, error) {
 	dueToday := max(d.Today-late, 0)
 
 	out := &core.WidgetData{URL: "/today", Metrics: []core.Metric{
-		{Label: "Today", Value: strconv.Itoa(dueToday)},
-		{Label: "Late", Value: strconv.Itoa(late)},
-		{Label: "Done today", Value: strconv.Itoa(d.DoneToday)},
+		// the dashboard's own numbers under the names Pocket Hub's phone apps look for
+		{Label: "Today", Value: strconv.Itoa(d.Today)},
+		{Label: "Overdue", Value: strconv.Itoa(late)},
+		{Label: "Finished today", Value: strconv.Itoa(d.DoneToday)},
 	}}
 	var parts []string
 	if dueToday > 0 {

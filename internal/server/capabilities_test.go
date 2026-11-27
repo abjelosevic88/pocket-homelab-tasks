@@ -267,7 +267,7 @@ func TestPocketWidget(t *testing.T) {
 	if got.Line != "2 due today, 1 late" || got.URL != "/today" {
 		t.Errorf("line: %+v", got)
 	}
-	want := []core.Metric{{Label: "Today", Value: "2"}, {Label: "Late", Value: "1"}, {Label: "Done today", Value: "1"}}
+	want := []core.Metric{{Label: "Today", Value: "3"}, {Label: "Overdue", Value: "1"}, {Label: "Finished today", Value: "1"}}
 	for i, m := range want {
 		if len(got.Metrics) != len(want) || got.Metrics[i] != m {
 			t.Errorf("metrics: %+v, want %+v", got.Metrics, want)
