@@ -34,6 +34,17 @@ var portable = &core.Portable{
 	},
 }
 
+// capabilities are what Pocket Search, Pocket Day and Pocket Hub may ask of
+// Tasks without knowing anything about it (docs/capabilities.md in
+// pocket-homelab-core): one fixed route each, in capabilities.go, run as the
+// person the caller acts for.
+var capabilities = core.Capabilities{
+	Search:  &core.Searchable{What: "Your tasks, by title, notes and tags", Kinds: []string{"task"}, Bangs: []string{"tasks"}},
+	Day:     &core.DayFeed{Label: "Tasks", One: "task", Many: "tasks", Unit: "count", What: "The tasks you finished or added that day, and the ones due that day that are still open"},
+	Widget:  &core.Widget{Title: "Tasks today", What: "What is due today, what is late and what you finished today"},
+	Capture: &core.QuickCapture{Kinds: []core.CaptureKind{{Kind: "task", Label: "Task", What: "A new task in the list your new tasks go to (your Inbox unless you chose another)", Fields: []string{"title", "due"}}}},
+}
+
 // serviceUses are the third-party services reached through Core for a person.
 var serviceUses = []core.ServiceUse{
 	{Type: "nextcloud", Reason: "Import your Nextcloud Tasks and keep them in sync both ways"},
@@ -58,7 +69,7 @@ var linkRoutes = []linkRoute{
 var errLinkScope = errors.New("outside the link's scope")
 
 func linkAllows(scopes []string, r *http.Request) bool {
-	if portable.LinkAllows(scopes, r) {
+	if portable.LinkAllows(scopes, r) || capabilities.LinkAllows(scopes, r) {
 		return true
 	}
 	for _, lr := range linkRoutes {

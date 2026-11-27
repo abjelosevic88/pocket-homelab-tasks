@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/ical"
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/quick"
 	"github.com/abjelosevic88/pocket-homelab-tasks/internal/store"
@@ -130,8 +131,9 @@ func sequenceOf(cal *ical.Component) int {
 }
 
 // saveTask stores a task (new or changed) from the index side: renders the
-// iCalendar, writes the row, recomputes alarms and tells the world.
-func (s *Server) saveTask(ctx context.Context, t *store.Task, source, kind string) error {
+// iCalendar, writes the row, recomputes alarms and tells the world. after
+// runs in the same transaction as the write.
+func (s *Server) saveTask(ctx context.Context, t *store.Task, source, kind string, after ...core.CommitHook) error {
 	if t.UID == "" {
 		t.UID = strings.ToUpper(newUUID())
 	}
@@ -148,12 +150,12 @@ func (s *Server) saveTask(ctx context.Context, t *store.Task, source, kind strin
 			kind = "updated"
 		}
 	}
-	hook := s.taskEvent(ctx, t, kind, source, nil)
+	hooks := append([]core.CommitHook{s.taskEvent(ctx, t, kind, source, nil)}, after...)
 	var err error
 	if isNew {
-		err = s.store.InsertTask(ctx, t, hook)
+		err = s.store.InsertTask(ctx, t, hooks...)
 	} else {
-		err = s.store.UpdateTask(ctx, t, hook)
+		err = s.store.UpdateTask(ctx, t, hooks...)
 	}
 	if err != nil {
 		return err
@@ -1451,7 +1453,16 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	ctx, uid := r.Context(), me(r)
+	d, err := s.dashboard(r.Context(), me(r))
+	if err != nil {
+		s.fail(w, err, "dashboard")
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
+}
+
+// dashboard counts where the person's tasks stand right now, in their zone.
+func (s *Server) dashboard(ctx context.Context, uid int64) (*store.Dashboard, error) {
 	loc := s.loc(ctx, uid)
 	now := time.Now().In(loc)
 	today := now.Format(ical.DayLayout)
@@ -1464,13 +1475,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	weekStart := dayStart.AddDate(0, 0, -wd)
 	d, err := s.store.Dashboard(ctx, uid, today, dayStart.AddDate(0, 0, 7).Format(ical.DayLayout), store.FormatTime(dayStart), store.FormatTime(weekStart))
 	if err != nil {
-		s.fail(w, err, "dashboard")
-		return
+		return nil, err
 	}
 	for _, t := range d.Next {
 		s.decorate(t, today, now.Format(ical.TimeLayout))
 	}
-	writeJSON(w, http.StatusOK, d)
+	return d, nil
 }
 
 var errNoSuchList = errors.New("no such list")

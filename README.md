@@ -110,6 +110,13 @@ All screenshots use the built-in demo data. [How to refresh them](docs/screensho
   Connect provider), a password, or a trusted proxy header.
 - Other Pocket apps act for a person through Core links (`tasks:read`, `tasks:write`): Pocket Day's
   journal, Pocket Notes' "make this line a task".
+- Pocket Search, Pocket Day and Pocket Hub find Tasks on their own. Tasks tells Pocket Core what it
+  can do, and answers on four fixed addresses, one link each, always as the person asking:
+  `GET /api/v1/pocket/search` (your tasks by words), `GET /api/v1/pocket/day/{date}` (what you
+  finished and added that day, and what is still due), `GET /api/v1/pocket/widget` ("Tasks today":
+  what is due, what is late, what is done) and `POST /api/v1/pocket/capture` (a quick line typed in
+  the Hub becomes a task in the list your new tasks go to; sent twice, it is still one task).
+  Nothing about Tasks has to be added to those apps.
 
 ## Run it
 

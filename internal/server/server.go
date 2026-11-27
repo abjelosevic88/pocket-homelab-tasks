@@ -304,6 +304,11 @@ func (s *Server) Router() http.Handler {
 			r.Get("/export.ics", s.handleExportICS)
 			r.Post("/import", s.handleImport)
 			r.Get(strings.TrimPrefix(core.PortablePath, "/api/v1"), portable.Handler())
+
+			r.Get("/pocket/search", core.SearchHandler(s.pocketSearch))
+			r.Get("/pocket/day/{date}", core.DayHandler(s.pocketDay))
+			r.Get("/pocket/widget", core.WidgetHandler(s.pocketWidget))
+			r.Post("/pocket/capture", capabilities.Capture.CaptureHandler(s.pocketCapture))
 		})
 	})
 
@@ -424,21 +429,27 @@ func (s *Server) coreLoop(ctx context.Context) {
 	}
 }
 
-func (s *Server) registerWithCore(ctx context.Context) error {
+// manifest is what Tasks tells Core about itself.
+func (s *Server) manifest() core.Manifest {
 	m := core.Manifest{
 		Slug: "tasks", Name: "Pocket Tasks",
 		Description: "Tasks with a real CalDAV server (Apple Reminders, BusyCal, Thunderbird, Tasks.org), every dated task on any calendar as an event, Nextcloud Tasks import and two-way sync, natural-language capture, sections, repeats, reminders pushed from the server.",
 		Icon:        "/favicon.svg", Version: Version,
-		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "TASKS",
-		Publishes: []string{"tasks.created", "tasks.updated", "tasks.completed", "tasks.deleted", "tasks.reminder"},
-		Offers:    linkOffers,
-		Services:  serviceUses,
-		Portable:  portable,
+		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "TASKS", Category: "Everyday",
+		Publishes:    []string{"tasks.created", "tasks.updated", "tasks.completed", "tasks.deleted", "tasks.reminder"},
+		Offers:       linkOffers,
+		Services:     serviceUses,
+		Portable:     portable,
+		Capabilities: capabilities,
 	}
 	if s.cfg.BaseURL != "" {
 		m.OIDC = &core.OIDCRequest{RedirectURIs: []string{s.cfg.BaseURL + "/api/v1/auth/oidc/callback"}}
 	}
-	reg, err := s.core.Register(ctx, s.cfg.CoreRegistrationKey, m)
+	return m
+}
+
+func (s *Server) registerWithCore(ctx context.Context) error {
+	reg, err := s.core.Register(ctx, s.cfg.CoreRegistrationKey, s.manifest())
 	if err != nil {
 		return err
 	}

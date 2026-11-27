@@ -195,6 +195,7 @@ type Query struct {
 	Deleted     bool     `json:"-"` // the trash
 	IDs         []int64  `json:"-"`
 	Links       []string `json:"-"` // ItemKey of each url=: only tasks linking to one (mentions.go)
+	CreatedOn   string   `json:"-"` // added in a local day: its UTC bounds as "from|to"
 }
 
 // Group is a heading over some ids in a list answer.

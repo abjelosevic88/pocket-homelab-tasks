@@ -323,6 +323,15 @@ func (s *Store) ListTasks(ctx context.Context, uid int64, q Query, inboxID int64
 			args = append(args, q.CompletedOn)
 		}
 	}
+	if q.CreatedOn != "" {
+		// like CompletedOn: the local day's UTC bounds as "from|to". The next
+		// round of a repeating task is not something the person added.
+		if from, to, ok := strings.Cut(q.CreatedOn, "|"); ok {
+			where = append(where, "t.created_at >= ? AND t.created_at < ?",
+				"NOT EXISTS (SELECT 1 FROM activity a WHERE a.task_id = t.id AND a.kind = 'created' AND a.detail = 'repeat')")
+			args = append(args, from, to)
+		}
+	}
 	if q.ModifiedAt != "" {
 		where = append(where, "t.updated_at > ?")
 		args = append(args, q.ModifiedAt)

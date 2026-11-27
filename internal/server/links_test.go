@@ -104,7 +104,8 @@ func TestTasksByURL(t *testing.T) {
 	}
 }
 
-// fakeCore answers introspection for two link tokens acting for alice.
+// fakeCore answers introspection for link tokens acting for alice: two with
+// the app's own scopes and one per capability (capabilities_test.go).
 func fakeCore(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +116,8 @@ func fakeCore(t *testing.T) *httptest.Server {
 		}
 		var in struct{ Token string }
 		_ = json.NewDecoder(r.Body).Decode(&in)
-		scope := map[string]string{"pcx_read": "tasks:read", "pcx_rw": "tasks:read tasks:write"}[in.Token]
+		scope := map[string]string{"pcx_read": "tasks:read", "pcx_rw": "tasks:read tasks:write",
+			"pcx_search": "pocket:search", "pcx_day": "pocket:day", "pcx_widget": "pocket:widget", "pcx_capture": "pocket:capture"}[in.Token]
 		if scope == "" {
 			_, _ = w.Write([]byte(`{"active":false}`))
 			return

@@ -206,6 +206,20 @@ Outside `/api`: `GET /feed/{token}.ics` (public by token, read-only, `?done=0|1&
 | GET | /pocket/portable | what Pocket Move may copy out and bring in (export.json = `pocket`, export.ics = `ical-todos`; /import takes both) |
 | POST | /client-error | the UI reports a crash |
 
+## For Pocket Search, Day and Hub
+
+Four fixed routes every Pocket app that offers them answers in the same shape (Pocket Core's
+`docs/capabilities.md`). Tasks names them in its manifest, so Pocket Search, Pocket Day and Pocket Hub
+use them without knowing anything else about Tasks. A signed-in person can call them too. Addresses
+(`url`) are paths in the app: `/list/{list_id}?task={id}` opens the task in its list.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | /pocket/search?q=&limit= | the search behind `/search` → `{items: [{id, title, snippet, kind: "task", date, url}]}`. `snippet`: the notes as plain text, else the list's name. `date`: the due day, else when the task last changed. Open tasks before finished ones. `limit` 1–50 (8) |
+| GET | /pocket/day/{YYYY-MM-DD}?tz= | that day in `tz` (IANA name; else the person's zone) → `{date, summary, items: [{id, time, title, sub, kind, done, url}], metrics: [{label, value}]}`. `kind`: `done` (finished that day, `time` = when), `due` (due that day and still open), `added` (made that day; the next round of a repeating task is not counted). A task shows once: done, else due, else added. `sub`: the list's name. `summary`: "4 done, 2 still due, 1 added", empty when nothing happened |
+| GET | /pocket/widget | the numbers of `/dashboard` → `{line: "2 due today, 1 late", metrics: [Today, Late, Done today], items: [{id, title, detail, url}], url: "/today"}`. Up to 8 rows: late ones, then today's, then what comes next; `detail`: `late`, `today`, the day it comes up (`tomorrow`, `Mon 30 Nov`), `due Mon 30 Nov` for a task of Today with a later deadline, else the list's name |
+| POST | /pocket/capture | `{request_id, kind?: "task", title?, text?, due?}` → 201 `{id, title, url}`. A new task in the list new tasks go to, in Today unless it has a `due` day. Without `title` the first line of `text` is the title and the rest the notes; with both, `text` is the notes. The same `request_id` (16–80 of `A-Z a-z 0-9 _ -`) again answers the same task and adds nothing; the same id with other words is a 400. Logged and announced like any new task, with source `capture` |
+
 ## Link scopes (Pocket Core)
 
 `tasks:read` → GET /tasks (incl. `?url=`), /tasks/{id}, /tasks/{id}/ics, /lists, /lists/{id}/sections, /tags,
@@ -214,3 +228,5 @@ Outside `/api`: `GET /feed/{token}.ics` (public by token, read-only, `?done=0|1&
 `{title, due?, url, notes}` stores `url` as given and answers the Task (201).
 `move:export` → GET /pocket/portable, /export.json, /export.ics. `move:import` → GET /pocket/portable, POST /import
 (Pocket Move, for the person the link acts for).
+`pocket:search` → GET /pocket/search. `pocket:day` → GET /pocket/day/{date}. `pocket:widget` → GET /pocket/widget.
+`pocket:capture` → POST /pocket/capture. Each opens that one route and nothing else of the app.
